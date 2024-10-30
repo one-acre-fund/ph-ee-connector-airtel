@@ -36,10 +36,10 @@ countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE"}'
 transaction-id-prefix: oaf-
 
 management:
-  endpoint:
-    health:
-      probes:
-        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
 
 logging:
   level:
