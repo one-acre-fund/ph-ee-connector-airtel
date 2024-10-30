@@ -6,6 +6,7 @@ plugins {
 
 group = 'org.mifos'
 sourceCompatibility = '17'
+version = '0.1.1'
 
 def camelCoreVersion = '3.19.0'
 
@@ -16,6 +17,7 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
 	implementation "org.apache.camel.springboot:camel-spring-boot-starter:${camelCoreVersion}"
 	implementation 'io.camunda:zeebe-client-java:8.1.4'
 	implementation "org.apache.camel.springboot:camel-jackson-starter:${camelCoreVersion}"
@@ -29,4 +31,14 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.register('printVersion') {
+	doLast {
+		println project.version
+	}
+}
+bootJar {
+	// Ensure that the version is excluded from the jar name, so the Dockerfile doesn't break.
+	archiveVersion = ''
 }
