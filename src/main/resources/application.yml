@@ -40,6 +40,18 @@ management:
     web:
       exposure:
         include: health,prometheus
+  endpoint:
+    health:
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
 
 logging:
   level:
