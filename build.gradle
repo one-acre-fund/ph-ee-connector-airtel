@@ -6,6 +6,7 @@ plugins {
 
 group = 'org.mifos'
 sourceCompatibility = '17'
+version = '0.1.1'
 
 def camelCoreVersion = '3.19.0'
 
@@ -30,4 +31,14 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.register('printVersion') {
+	doLast {
+		println project.version
+	}
+}
+bootJar {
+	// Ensure that the version is excluded from the jar name, so the Dockerfile doesn't break.
+	archiveVersion = ''
 }
