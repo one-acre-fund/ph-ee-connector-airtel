@@ -11,6 +11,7 @@ import org.apache.camel.builder.RouteConfigurationBuilder;
 import org.apache.camel.component.bean.validator.BeanValidationException;
 import org.mifos.connector.airtel.dto.ErrorResponse;
 import org.mifos.connector.airtel.exception.WorkflowException;
+import org.mifos.connector.airtel.exception.WorkflowNotFoundException;
 import org.springframework.stereotype.Component;
 
 /**
@@ -34,6 +35,17 @@ public class ExceptionHandler extends RouteConfigurationBuilder {
                     "Errors exist in the request body", errors);
                 exchange.getIn().setBody(response);
                 exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 400);
+            })
+            .marshal().json();
+
+        routeConfiguration()
+            .onException(WorkflowNotFoundException.class)
+            .handled(true)
+            .process(exchange -> {
+                WorkflowNotFoundException exception = exchange
+                    .getProperty(Exchange.EXCEPTION_CAUGHT, WorkflowNotFoundException.class);
+                exchange.getIn().setBody(new ErrorResponse(exception.getMessage(), null));
+                exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 404);
             })
             .marshal().json();
 

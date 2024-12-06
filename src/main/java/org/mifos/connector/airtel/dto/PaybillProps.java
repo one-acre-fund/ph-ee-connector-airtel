@@ -1,5 +1,7 @@
 package org.mifos.connector.airtel.dto;
 
+import static org.mifos.connector.airtel.camel.config.CamelProperties.DEFAULT;
+
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,10 @@ public class PaybillProps {
 
     public void setAmsShortCodes(Map<String, AmsProps> amsShortCodes) {
         this.amsShortCodes = amsShortCodes;
+    }
+
+    public AmsProps getAmsProps(String shortCode) {
+        return amsShortCodes.getOrDefault(shortCode, amsShortCodes.get(DEFAULT));
     }
 
     /**
