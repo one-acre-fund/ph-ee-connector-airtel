@@ -32,5 +32,7 @@ public class CamelProperties {
     public static final String PRIMARY_IDENTIFIER_VALUE = "primaryIdentifierValue";
     public static final String CORRELATION_ID_HEADER = "X-CorrelationID";
     public static final String CHANNEL_VALIDATION_RESPONSE = "channelValidationResponse";
+    public static final String PLATFORM_TENANT_ID = "Platform-TenantId";
+    public static final String CONFIRMATION_REQUEST_BODY = "confirmationRequestBody";
 
 }

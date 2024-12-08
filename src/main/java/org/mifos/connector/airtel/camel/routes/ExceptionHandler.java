@@ -6,11 +6,10 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
-import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteConfigurationBuilder;
 import org.apache.camel.component.bean.validator.BeanValidationException;
 import org.mifos.connector.airtel.dto.ErrorResponse;
-import org.mifos.connector.airtel.exception.WorkflowException;
+import org.mifos.connector.airtel.exception.TransactionAlreadyExistsException;
 import org.mifos.connector.airtel.exception.WorkflowNotFoundException;
 import org.springframework.stereotype.Component;
 
@@ -50,26 +49,27 @@ public class ExceptionHandler extends RouteConfigurationBuilder {
             .marshal().json();
 
         routeConfiguration()
-            .onException(WorkflowException.class)
+            .onException(TransactionAlreadyExistsException.class)
             .handled(true)
-            .log(LoggingLevel.ERROR, "Workflow error occurred: ${exception.stacktrace}")
-            .process(handleInternalServerError())
+            .process(exchange -> {
+                TransactionAlreadyExistsException exception = exchange
+                    .getProperty(Exchange.EXCEPTION_CAUGHT,
+                        TransactionAlreadyExistsException.class);
+                exchange.getIn().setBody(new ErrorResponse(exception.getMessage(), null));
+                exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 409);
+            })
             .marshal().json();
 
         routeConfiguration()
             .onException(Exception.class)
             .handled(true)
             .log(LoggingLevel.ERROR, "Caught exception: ${exception.stacktrace}")
-            .process(handleInternalServerError())
+            .process(exchange -> {
+                ErrorResponse response = new ErrorResponse(
+                    "An error occurred while processing the request", null);
+                exchange.getIn().setBody(response);
+                exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 500);
+            })
             .marshal().json();
-    }
-
-    private static Processor handleInternalServerError() {
-        return exchange -> {
-            ErrorResponse response = new ErrorResponse(
-                "An error occurred while processing the request", null);
-            exchange.getIn().setBody(response);
-            exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 500);
-        };
     }
 }

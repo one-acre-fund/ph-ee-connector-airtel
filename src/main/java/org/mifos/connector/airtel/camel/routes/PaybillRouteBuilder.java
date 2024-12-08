@@ -7,16 +7,20 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.AMS_NAME;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.AMS_URL;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.BRIDGE_ENDPOINT_QUERY_PARAM;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CHANNEL_VALIDATION_RESPONSE;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.CONFIRMATION_REQUEST_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CORRELATION_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CORRELATION_ID_HEADER;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.JSON_CONTENT_TYPE;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PRIMARY_IDENTIFIER;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PRIMARY_IDENTIFIER_VALUE;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CHANNEL_REQUEST;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CONFIRMATION_RECEIVED;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.EXTERNAL_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INITIATOR_FSP_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_CREATE_FAILED;
 
 import io.camunda.zeebe.client.ZeebeClient;
 import java.time.Duration;
@@ -24,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.camel.builder.RouteBuilder;
 import org.mifos.connector.airtel.dto.AirtelConfirmationRequest;
+import org.mifos.connector.airtel.dto.AirtelConfirmationResponse;
 import org.mifos.connector.airtel.dto.AirtelValidationRequest;
 import org.mifos.connector.airtel.dto.AirtelValidationResponse;
 import org.mifos.connector.airtel.dto.ChannelConfirmationRequest;
@@ -31,10 +36,15 @@ import org.mifos.connector.airtel.dto.ChannelValidationRequest;
 import org.mifos.connector.airtel.dto.ChannelValidationResponse;
 import org.mifos.connector.airtel.dto.ErrorResponse;
 import org.mifos.connector.airtel.dto.PaybillProps;
+import org.mifos.connector.airtel.dto.TransactionStatusResponse;
 import org.mifos.connector.airtel.dto.WorkflowResponse;
-import org.mifos.connector.airtel.exception.WorkflowException;
+import org.mifos.connector.airtel.exception.TransactionAlreadyExistsException;
 import org.mifos.connector.airtel.exception.WorkflowNotFoundException;
 import org.mifos.connector.airtel.util.AirtelUtils;
+import org.mifos.connector.common.channel.dto.TransactionStatusResponseDTO;
+import org.mifos.connector.common.mojaloop.type.TransferState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -44,6 +54,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PaybillRouteBuilder extends RouteBuilder {
 
+    private static final Logger logger = LoggerFactory.getLogger(PaybillRouteBuilder.class);
     private static final Map<String, String> workflowInstanceStore = new HashMap<>();
     private final ZeebeClient zeebeClient;
     private final PaybillProps paybillProps;
@@ -88,40 +99,101 @@ public class PaybillRouteBuilder extends RouteBuilder {
         from("rest:POST:/paybill/confirmation")
             .id("airtel-confirmation")
             .unmarshal().json(AirtelConfirmationRequest.class)
-            .log("Received airtel confirmation response with transaction id: ${body.transactionId},"
+            .log("Received airtel confirmation request with transaction id: ${body.transactionId},"
                 + " body: ${body} ")
             .to("bean-validator:confirmation-request-validator")
+            .setProperty(CONFIRMATION_REQUEST_BODY, simple("${body}"))
             .process(exchange -> {
-                AirtelConfirmationRequest request = exchange.getIn()
-                    .getBody(AirtelConfirmationRequest.class);
-                String workflowInstanceId = workflowInstanceStore.get(request.transactionId());
-                if (workflowInstanceId == null) {
+                AirtelConfirmationRequest request = exchange.getProperty(CONFIRMATION_REQUEST_BODY,
+                    AirtelConfirmationRequest.class);
+                String workflowTransactionId = workflowInstanceStore.get(request.transactionId());
+                if (workflowTransactionId == null) {
                     throw new WorkflowNotFoundException("No workflow instance found for "
                         + "transaction id " + request.transactionId()
-                        + ". The transaction was not validated.");
+                        + ". The transaction may not have been validated.");
                 }
                 workflowInstanceStore.remove(request.transactionId());
+                exchange.setProperty(CORRELATION_ID, workflowTransactionId);
+            })
+            .setProperty(TRANSACTION_ID, simple("${body.transactionId}"))
+            .to("direct:paybill-transaction-status-check-base")
+            .process(exchange -> {
+                // Ensure the transaction doesn't already exist
+                TransactionStatusResponseDTO transactionStatusResponse = exchange.getIn()
+                    .getBody(TransactionStatusResponseDTO.class);
+                if (transactionStatusResponse != null && TransferState.COMMITTED
+                    .equals(transactionStatusResponse.getTransferState())) {
+                    throw new TransactionAlreadyExistsException("Transaction already exists");
+                }
 
+                AirtelConfirmationRequest request = exchange.getProperty(CONFIRMATION_REQUEST_BODY,
+                    AirtelConfirmationRequest.class);
                 PaybillProps.AmsProps amsProps = paybillProps
                     .getAmsProps(request.businessShortCode());
                 ChannelConfirmationRequest confirmationRequest = ChannelConfirmationRequest
                     .fromPaybillConfirmation(request, amsProps);
+                String workflowTransactionId = exchange.getProperty(CORRELATION_ID, String.class);
                 Map<String, Object> variables = new HashMap<>();
                 variables.put(CONFIRMATION_RECEIVED, true);
                 variables.put(CHANNEL_REQUEST, confirmationRequest.toString());
                 variables.put(amsProps.getIdentifier(), request.accountNumber());
-                variables.put(CORRELATION_ID, workflowInstanceId);
+                variables.put(TRANSACTION_ID, request.transactionId());
+                variables.put(CORRELATION_ID, workflowTransactionId);
+                variables.put(EXTERNAL_ID, request.transactionId());
+                variables.put(TRANSFER_CREATE_FAILED, false);
                 variables.put("phoneNumber", request.msisdn());
                 variables.put("amount", request.amount());
                 zeebeClient.newPublishMessageCommand()
                     .messageName("pendingAirtelConfirmation")
-                    .correlationKey(request.transactionId())
+                    .correlationKey(workflowTransactionId)
                     .timeToLive(Duration.ofMillis(300))
                     .variables(variables)
                     .send();
             })
             .setHeader(HTTP_RESPONSE_CODE, constant(202))
-            .setBody(constant(""));
+            .setBody(constant(new AirtelConfirmationResponse("Confirmation request accepted")))
+            .marshal().json();
+
+        from("rest:GET:/paybill/status/{transactionId}")
+            .id("paybill-transaction-status-check")
+            .setProperty(TRANSACTION_ID, header(TRANSACTION_ID))
+            .to("direct:paybill-transaction-status-check-base")
+            .choice()
+                .when(header(HTTP_RESPONSE_CODE).isEqualTo("200"))
+                    .setBody(exchange -> {
+                        TransactionStatusResponseDTO response = exchange.getIn()
+                            .getBody(TransactionStatusResponseDTO.class);
+                        String message = TransferState.COMMITTED.equals(response.getTransferState())
+                            ? "Transaction completed"
+                            : "Transaction not completed";
+                        return new TransactionStatusResponse(message, response.getTransferState(),
+                            response.getTransactionId());
+                    })
+                .when(header(HTTP_RESPONSE_CODE).isEqualTo("404"))
+                    .setHeader(HTTP_RESPONSE_CODE, constant(404))
+                    .setBody(constant(new ErrorResponse("Transaction not found", null)))
+                .otherwise()
+                    .setHeader(HTTP_RESPONSE_CODE, constant(500))
+                    .setBody(constant(new ErrorResponse(
+                        "Failed to retrieve transaction status", null
+                        ))
+                    )
+            .end()
+            .marshal().json();
+
+        from("direct:paybill-transaction-status-check-base")
+            .id("paybill-transaction-status-check-base")
+            .process(exchange -> {
+                exchange.getIn().removeHeaders("*");
+                exchange.getIn().setBody(null);
+                exchange.getIn().setHeader(PLATFORM_TENANT_ID,
+                    paybillProps.getAccountHoldingInstitutionId());
+                exchange.getIn().setHeader("requestType", "transfers");
+            })
+            .toD(channelUrl + "/channel/transfer/${header.transactionId}"
+                + BRIDGE_ENDPOINT_QUERY_PARAM)
+            .log("Received status response for transaction ${header.transactionId}: ${body}")
+            .unmarshal().json(TransactionStatusResponseDTO.class);
 
         from("direct:account-status")
             .id("account-status")
@@ -136,7 +208,7 @@ public class PaybillRouteBuilder extends RouteBuilder {
                 exchange.getIn().setHeader(AMS_NAME, amsProps.getAmsName());
                 exchange.getIn().setHeader(ACCOUNT_HOLDING_INSTITUTION_ID,
                     paybillProps.getAccountHoldingInstitutionId());
-                exchange.setProperty(INITIATOR_FSP_ID, request.businessShortCode());
+                exchange.setProperty(INITIATOR_FSP_ID, amsProps.getBusinessShortCode());
                 exchange.setProperty(PRIMARY_IDENTIFIER, amsProps.getIdentifier());
                 exchange.setProperty(PRIMARY_IDENTIFIER_VALUE, request.accountNumber());
                 return ChannelValidationRequest.fromPaybillValidation(request, amsProps);
@@ -166,8 +238,9 @@ public class PaybillRouteBuilder extends RouteBuilder {
                 String primaryIdentifier = exchange.getProperty(PRIMARY_IDENTIFIER, String.class);
                 String primaryIdentifierValue = exchange.getProperty(PRIMARY_IDENTIFIER_VALUE,
                     String.class);
+                String timer = paybillProps.getTimer();
                 return AirtelUtils.createGsmaTransferRequest(validationResponse,
-                    businessShortCode, primaryIdentifier, primaryIdentifierValue);
+                    businessShortCode, primaryIdentifier, primaryIdentifierValue, timer);
             })
             .marshal().json()
             .toD(channelUrl + "/channel/gsma/transaction" + BRIDGE_ENDPOINT_QUERY_PARAM)
@@ -183,7 +256,11 @@ public class PaybillRouteBuilder extends RouteBuilder {
                 if (workflowResponse == null || workflowResponse.transactionId() == null
                     || workflowResponse.transactionId().isBlank()
                     || workflowResponse.transactionId().trim().equalsIgnoreCase("null")) {
-                    throw new WorkflowException("Failed to start paybill workflow");
+                    String transactionId = exchange.getProperty(TRANSACTION_ID, String.class);
+                    String errorMessage = "Failed to start paybill workflow for transaction id "
+                        + transactionId;
+                    logger.error(errorMessage + ". Response from channel is {}", workflowResponse);
+                    throw new RuntimeException(errorMessage);
                 }
                 ChannelValidationResponse validationResponse = exchange
                     .getProperty(CHANNEL_VALIDATION_RESPONSE, ChannelValidationResponse.class);

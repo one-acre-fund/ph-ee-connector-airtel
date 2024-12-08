@@ -5,6 +5,7 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.SECONDARY_
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AMS;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CONFIRMATION_RECEIVED;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CONFIRMATION_TIMER;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INITIATOR_FSP_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.PARTY_LOOKUP_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TENANT_ID;
@@ -32,12 +33,14 @@ public class AirtelUtils {
      * @param businessShortCode         business short code
      * @param primaryIdentifier         primary identifier
      * @param primaryIdentifierValue    primary identifier value
+     * @param timer                     The duration (in ISO 8601 format) for a confirmation request
+     *                                  to be received
      * @return {@link GsmaTransfer}
      */
     public static GsmaTransfer createGsmaTransferRequest(
         ChannelValidationResponse channelValidationResponse,
         String businessShortCode, String primaryIdentifier,
-        String primaryIdentifierValue) {
+        String primaryIdentifierValue, String timer) {
 
         Party payer = new Party();
         payer.setPartyIdIdentifier(channelValidationResponse.msisdn());
@@ -49,7 +52,7 @@ public class AirtelUtils {
 
         GsmaTransfer gsmaTransfer = new GsmaTransfer();
         List<CustomData> customData = createCustomData(channelValidationResponse,
-            businessShortCode);
+            businessShortCode, timer);
         gsmaTransfer.setCustomData(customData);
         String currentDateTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
             .format(new Date());
@@ -70,11 +73,13 @@ public class AirtelUtils {
      * Create custom data for the GSMA transfer request payload.
      *
      * @param validationResponse {@link ChannelValidationResponse}
-     * @param businessShortCode         business short code
+     * @param businessShortCode  business short code
+     * @param timer              The duration (in ISO 8601 format) for a confirmation request
+     *                           to be received
      * @return list of custom data
      */
     private static List<CustomData> createCustomData(ChannelValidationResponse validationResponse,
-                                                     String businessShortCode) {
+                                                     String businessShortCode, String timer) {
         CustomData reconciled = new CustomData(PARTY_LOOKUP_FAILED,
             !validationResponse.reconciled());
         CustomData confirmationReceived = new CustomData(CONFIRMATION_RECEIVED, false);
@@ -87,8 +92,9 @@ public class AirtelUtils {
             validationResponse.transactionId());
         CustomData currency = new CustomData(CURRENCY, validationResponse.currency());
         CustomData initiatorFspId = new CustomData(INITIATOR_FSP_ID, businessShortCode);
+        CustomData confirmationTimer = new CustomData(CONFIRMATION_TIMER, timer);
         return List.of(reconciled, confirmationReceived, transactionId, ams, tenantId,
-            clientCorrelationId, currency, initiatorFspId);
+            clientCorrelationId, currency, initiatorFspId, confirmationTimer);
     }
 
 }

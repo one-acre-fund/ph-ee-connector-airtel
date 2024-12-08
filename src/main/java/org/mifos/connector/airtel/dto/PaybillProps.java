@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "paybill")
 public class PaybillProps {
     private String accountHoldingInstitutionId;
+    private String timer;
     private Map<String, AmsProps> amsShortCodes;
 
     public String getAccountHoldingInstitutionId() {
@@ -21,6 +22,14 @@ public class PaybillProps {
 
     public void setAccountHoldingInstitutionId(String accountHoldingInstitutionId) {
         this.accountHoldingInstitutionId = accountHoldingInstitutionId;
+    }
+
+    public String getTimer() {
+        return timer;
+    }
+
+    public void setTimer(String timer) {
+        this.timer = timer;
     }
 
     public Map<String, AmsProps> getAmsShortCodes() {
@@ -42,6 +51,7 @@ public class PaybillProps {
         private String amsName;
         private String amsUrl;
         private String identifier;
+        private String businessShortCode;
 
         public String getAmsName() {
             return amsName;
@@ -65,6 +75,14 @@ public class PaybillProps {
 
         public void setIdentifier(String identifier) {
             this.identifier = identifier;
+        }
+
+        public String getBusinessShortCode() {
+            return businessShortCode;
+        }
+
+        public void setBusinessShortCode(String businessShortCode) {
+            this.businessShortCode = businessShortCode;
         }
     }
 }

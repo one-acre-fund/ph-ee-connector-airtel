@@ -1,10 +1,21 @@
 version: "3.9"
 
+volumes:
+  zeebe_data:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
+
 services:
   zeebe:
     image: camunda/zeebe:8.1.6
     environment:
       ZEEBE_LOG_LEVEL: debug
+      ZEEBE_BROKER_EXPORTERS_KAFKA_CLASSNAME: hu.dpc.rt.kafkastreamer.exporter.KafkaExporter
+      ZEEBE_BROKER_EXPORTERS_KAFKA_JARPATH: /exporter.jar
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_JARPATH: /exporter.jar
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME: hu.dpc.rt.kafkastreamer.exporter.NoOpExporter
     ports:
       - "26500:26500"
       - "9600:9600"
@@ -14,6 +25,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 1m30s
+    volumes:
+      - zeebe_data:/usr/local/zeebe/data
+      - ./zeebe-config.yaml:/usr/local/zeebe/config/application.yaml
+      - /absolute/path/to/ph-ee-exporter/kafka-clients-2.4.0.jar:/usr/local/zeebe/lib/kafka-clients-2.4.0.jar
+      - /absolute/path/to/ph-ee-exporter/target/exporter-1.0.0-SNAPSHOT.jar:/exporter.jar
 
   zeebe_ops:
     image: oaftech.azurecr.io/phee-ns/phee-zeebe-ops:v1.0.2
@@ -25,6 +41,80 @@ services:
     depends_on:
       zeebe:
         condition: service_healthy
+
+  zookeeper:
+    image: docker.io/bitnami/zookeeper:3.7
+    ports:
+      - "2181:2181"
+    volumes:
+      - "zookeeper_data:/bitnami"
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: yes
+
+  kafka:
+    container_name: kafka
+    image: docker.io/bitnami/kafka:2
+    ports:
+      - "9094:9094"
+    volumes:
+      - "kafka_data:/bitnami"
+    environment:
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      ALLOW_PLAINTEXT_LISTENER: yes
+      KAFKA_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    depends_on:
+      - zookeeper
+
+  kafka-ui:
+    image: docker.redpanda.com/redpandadata/console:latest
+    ports:
+      - "9095:8080"
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - kafka
+
+  operations-mysql:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+    ports:
+      - "3306:3306"
+
+  rdbms-importer-rdbms:
+    image: oaftech.azurecr.io/oneacrefund/ph-ee-importer-rdbms:1.0.0-mifos-1.3.1
+    environment:
+      LOGGING_LEVEL_ROOT: info
+      DATASOURCE_CORE_HOST: operations-mysql
+      DATASOURCE_CORE_USERNAME: root
+      DATASOURCE_CORE_PASSWORD: mysql
+      DATASOURCE_CORE_SCHEMA: tenants
+      KAFKA_BROKERS: "http://kafka:9092"
+      BPMN_PROCESSES_0__ID: "inbound_airtel_roster"
+      BPMN_PROCESSES_0__DIRECTION: "$${bpmn.incoming-direction}"
+      BPMN_PROCESSES_0__TYPE: "$${bpmn.transfer-type}"
+      BPMN_PROCESSES_1__ID: "inbound_tnm_fineract"
+      BPMN_PROCESSES_1__DIRECTION: "$${bpmn.incoming-direction}"
+      BPMN_PROCESSES_1__TYPE: "$${bpmn.transfer-type}"
+    ports:
+      - "5007:3306"
+    depends_on:
+      - operations-mysql
+
+  operations-app:
+    image: oaftech.azurecr.io/oneacrefund/operations-app:v1.0.2
+    ports:
+      - 5006:5000
+    environment:
+      FINERACT_DATASOURCE_CORE_HOST: operations-mysql
+      SPRING_PROFILES_ACTIVE: bb
+      TENANTS: oaf
+    depends_on:
+      - operations-mysql
+      - rdbms-importer-rdbms
 
   channel_connector:
     image: oaftech.azurecr.io/phee-ns/ph-ee-connector-channel:v1.5.3

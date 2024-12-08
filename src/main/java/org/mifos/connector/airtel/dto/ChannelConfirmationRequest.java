@@ -31,7 +31,7 @@ public record ChannelConfirmationRequest(JSONObject payer, JSONObject payee, JSO
         payee.put("partyIdInfo", partyIdInfoPayee);
 
         JSONObject amount = new JSONObject();
-        amount.put("amount", request.amount());
+        amount.put("amount", request.amount().toString());
         amount.put("currency", request.currency());
         return new ChannelConfirmationRequest(payer, payee, amount);
     }

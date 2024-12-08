@@ -35,4 +35,6 @@ public class ZeebeVariables {
     public static final String AMS = "ams";
     public static final String TENANT_ID = "tenantId";
     public static final String CLIENT_CORRELATION_ID = "clientCorrelationId";
+    public static final String EXTERNAL_ID = "externalId";
+    public static final String CONFIRMATION_TIMER = "airtelConfirmationTimer";
 }

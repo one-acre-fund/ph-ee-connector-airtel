@@ -63,7 +63,7 @@
     <bpmn:boundaryEvent id="Event_1t8ddwv" attachedToRef="pending-airtel-confirmation">
       <bpmn:outgoing>Flow_1mlv58f</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_1ytq287">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">= timer</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">= airtelConfirmationTimer</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
     <bpmn:sequenceFlow id="Flow_1oum6u4" name="MNO Confirmation Received" sourceRef="pending-airtel-confirmation" targetRef="Gateway_0esi9al" />
