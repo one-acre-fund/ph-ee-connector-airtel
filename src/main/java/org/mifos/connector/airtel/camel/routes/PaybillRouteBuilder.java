@@ -55,7 +55,7 @@ import org.springframework.stereotype.Component;
 public class PaybillRouteBuilder extends RouteBuilder {
 
     private static final Logger logger = LoggerFactory.getLogger(PaybillRouteBuilder.class);
-    private static final Map<String, String> workflowInstanceStore = new HashMap<>();
+    public static final Map<String, String> workflowInstanceStore = new HashMap<>();
     private final ZeebeClient zeebeClient;
     private final PaybillProps paybillProps;
     private final String channelUrl;
