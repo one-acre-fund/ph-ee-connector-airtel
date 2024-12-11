@@ -1,20 +1,22 @@
 package org.mifos.connector.airtel.dto;
 
-import static org.mifos.connector.airtel.camel.config.CamelProperties.DEFAULT;
-
 import java.util.Map;
+import javax.validation.constraints.AssertTrue;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 
 /**
  * Holds data required for handling paybill transactions.
  */
 @Component
 @ConfigurationProperties(prefix = "paybill")
+@Validated
 public class PaybillProps {
     private String accountHoldingInstitutionId;
     private String timer;
     private Map<String, AmsProps> amsShortCodes;
+    private String defaultShortCode;
 
     public String getAccountHoldingInstitutionId() {
         return accountHoldingInstitutionId;
@@ -40,8 +42,33 @@ public class PaybillProps {
         this.amsShortCodes = amsShortCodes;
     }
 
+    /**
+     * Get the AMS properties for the given short code. If the short code is null or blank,
+     * the AMS properties associated with the default short code is returned.
+     *
+     * @param shortCode the short code
+     * @return the AMS properties
+     */
     public AmsProps getAmsProps(String shortCode) {
-        return amsShortCodes.getOrDefault(shortCode, amsShortCodes.get(DEFAULT));
+        if (shortCode == null || shortCode.isBlank()) {
+            shortCode = defaultShortCode;
+        }
+        AmsProps amsProps = amsShortCodes.get(shortCode);
+        amsProps.businessShortCode = shortCode;
+        return amsProps;
+    }
+
+    public String getDefaultShortCode() {
+        return defaultShortCode;
+    }
+
+    public void setDefaultShortCode(String defaultShortCode) {
+        this.defaultShortCode = defaultShortCode;
+    }
+
+    @AssertTrue(message = "Default short code is not among the configured AMS short codes.")
+    public boolean isDefaultShortCodeValid() {
+        return amsShortCodes.containsKey(defaultShortCode);
     }
 
     /**
@@ -79,10 +106,6 @@ public class PaybillProps {
 
         public String getBusinessShortCode() {
             return businessShortCode;
-        }
-
-        public void setBusinessShortCode(String businessShortCode) {
-            this.businessShortCode = businessShortCode;
         }
     }
 }

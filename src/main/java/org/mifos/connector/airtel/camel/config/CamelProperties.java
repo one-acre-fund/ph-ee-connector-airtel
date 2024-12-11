@@ -23,7 +23,6 @@ public class CamelProperties {
     public static final String AMS_URL = "amsUrl";
     public static final String AMS_NAME = "amsName";
     public static final String ACCOUNT_HOLDING_INSTITUTION_ID = "accountHoldingInstitutionId";
-    public static final String DEFAULT = "default";
     public static final String SECONDARY_IDENTIFIER_NAME = "MSISDN";
     public static final String BRIDGE_ENDPOINT_QUERY_PARAM =
         "?bridgeEndpoint=true&throwExceptionOnFailure=false";

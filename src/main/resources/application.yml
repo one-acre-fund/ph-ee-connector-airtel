@@ -68,14 +68,8 @@ paybill:
       ams-name: roster
       ams-url: http://localhost:5004
       identifier: ACCOUNTID
-      business-short-code: 123456
     789012:
       ams-name: fineract
       ams-url: http://localhost:5005
       identifier: FINERACTACCOUNTID
-      business-short-code: 789012
-    default:
-      ams-name: roster
-      ams-url: http://localhost:5004
-      identifier: ACCOUNTID
-      business-short-code: 123456
+  default-short-code: 123456
