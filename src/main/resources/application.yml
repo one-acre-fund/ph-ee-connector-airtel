@@ -31,7 +31,7 @@ airtel:
   max-retry-count: 3
   timeout: 6000
 
-countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE"}'
+countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE", "mwk": "MW"}'
 
 transaction-id-prefix: oaf-
 
@@ -56,3 +56,20 @@ management:
 logging:
   level:
     ROOT: INFO
+
+channel:
+  host: "http://localhost:8080"
+
+paybill:
+  account-holding-institution-id: oaf
+  timer: "PT45S"
+  ams-short-codes:
+    123456:
+      ams-name: roster
+      ams-url: http://localhost:5004
+      identifier: ACCOUNTID
+    789012:
+      ams-name: fineract
+      ams-url: http://localhost:5005
+      identifier: FINERACTACCOUNTID
+  default-short-code: 123456

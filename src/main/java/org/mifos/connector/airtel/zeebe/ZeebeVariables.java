@@ -29,4 +29,12 @@ public class ZeebeVariables {
     public static final String TRANSFER_RESPONSE_CREATE = "transferResponse-CREATE";
     public static final String CALLBACK_RECEIVED = "isCallbackReceived";
     public static final String CALLBACK = "callback";
+    public static final String INITIATOR_FSP_ID = "initiatorFspId";
+    public static final String PARTY_LOOKUP_FAILED = "partyLookupFailed";
+    public static final String CONFIRMATION_RECEIVED = "confirmationReceived";
+    public static final String AMS = "ams";
+    public static final String TENANT_ID = "tenantId";
+    public static final String CLIENT_CORRELATION_ID = "clientCorrelationId";
+    public static final String EXTERNAL_ID = "externalId";
+    public static final String CONFIRMATION_TIMER = "airtelConfirmationTimer";
 }

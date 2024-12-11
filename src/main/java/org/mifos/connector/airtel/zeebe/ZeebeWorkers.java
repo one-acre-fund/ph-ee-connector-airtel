@@ -7,7 +7,9 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.CORRELATIO
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COUNTRY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.DEPLOYED_PROCESS;
+import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CHANNEL_REQUEST;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_CODE;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_DESCRIPTION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
@@ -192,6 +194,21 @@ public class ZeebeWorkers {
                     .join();
             })
             .name(GET_TRANSACTION_STATUS_WORKER_NAME)
+            .maxJobsActive(workerMaxJobs)
+            .open();
+
+        zeebeClient.newWorker()
+            .jobType("delete-airtel-workflow-instancekey")
+            .handler(((client, job) -> {
+                Map<String, Object> variables = job.getVariablesAsMap();
+                String transactionId = (String) variables.get(CLIENT_CORRELATION_ID);
+                logger.info("Removing Airtel txn id {} & instance key from store", transactionId);
+                workflowInstanceStore.remove(transactionId);
+                client.newCompleteCommand(job.getKey())
+                    .send()
+                    .join();
+            }))
+            .name("Cleanup")
             .maxJobsActive(workerMaxJobs)
             .open();
     }
