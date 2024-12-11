@@ -50,7 +50,7 @@ public class PaybillProps {
      * @return the AMS properties
      */
     public AmsProps getAmsProps(String shortCode) {
-        if (shortCode == null || shortCode.isBlank()) {
+        if (shortCode == null || shortCode.isBlank() || !amsShortCodes.containsKey(shortCode)) {
             shortCode = defaultShortCode;
         }
         AmsProps amsProps = amsShortCodes.get(shortCode);
