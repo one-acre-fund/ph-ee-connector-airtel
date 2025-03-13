@@ -5,6 +5,7 @@
         * [SER-3300] - Create a BPMN flow for Airtel Malawi
         * [SER-2251] - Create a validation endpoint for Airtel Malawi Collections
         * [SER-2252] - Create a confirmation and Payment Status endpoint for Airtel Malawi collections
+        * [CP-3466] - Add Fineract BPMN flow
 
 ## Version 0.1.1
 
