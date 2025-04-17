@@ -274,8 +274,13 @@ public class PaybillRouteBuilder extends RouteBuilder {
         from("direct:paybill-validation-response-failure")
             .id("paybill-validation-response-failure")
             .setBody(exchange -> {
+                ChannelValidationResponse validationResponse = exchange.getIn()
+                    .getBody(ChannelValidationResponse.class);
+                String message = validationResponse.message() != null
+                    ? validationResponse.message()
+                    : "Client validation failed";
                 exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 403);
-                return new ErrorResponse("Client validation failed", null);
+                return new ErrorResponse(message, null);
             })
             .marshal().json();
     }

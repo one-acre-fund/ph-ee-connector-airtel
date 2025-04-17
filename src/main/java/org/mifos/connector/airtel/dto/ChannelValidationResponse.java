@@ -15,6 +15,7 @@ import org.mifos.connector.common.gsma.dto.CustomData;
  * @param msisdn                      the client's phone number
  * @param clientName                  the client's full name
  * @param customData                  custom data
+ * @param message                     the validation message
  */
 public record ChannelValidationResponse(
     boolean reconciled,
@@ -25,5 +26,6 @@ public record ChannelValidationResponse(
     String currency,
     String msisdn,
     String clientName,
-    List<CustomData> customData
+    List<CustomData> customData,
+    String message
 ) { }

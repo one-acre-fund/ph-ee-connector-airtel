@@ -1,5 +1,9 @@
 # Release Notes
 
+## Version 1.1.0
+
+        * [CP-3303] - Return paybill validation response message
+
 ## Version 1.0.0
 
         * [SER-3300] - Create a BPMN flow for Airtel Malawi
