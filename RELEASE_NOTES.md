@@ -1,5 +1,9 @@
 # Release Notes
 
+## Version 1.1.1
+
+        * [CP-3533] - Expose springboot actuator endpoints through camel route
+
 ## Version 1.1.0
 
         * [CP-3303] - Return paybill validation response message
