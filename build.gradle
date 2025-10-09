@@ -2,6 +2,8 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '2.7.6'
 	id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+	id 'jacoco'
+	id 'org.sonarqube' version '4.4.1.3373'
 }
 
 group = 'org.mifos'
@@ -42,6 +44,7 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy jacocoTestReport
 }
 
 tasks.register('printVersion') {
@@ -52,4 +55,29 @@ tasks.register('printVersion') {
 bootJar {
 	// Ensure that the version is excluded from the jar name, so the Dockerfile doesn't break.
 	archiveVersion = ''
+}
+
+jacocoTestReport {
+	dependsOn test // Ensures tests are run before generating the report
+	reports {
+		xml.required = true // Enable XML report generation
+		html.required = true // Enable HTML report generation
+		xml.destination file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml")
+		html.destination file("${buildDir}/reports/jacoco/test/html")
+	}
+}
+
+
+sonarqube {
+	properties {
+		property "sonar.projectKey", "one-acre-fund_ph-ee-connector-airtel"
+		property "sonar.organization", "one-acre-fund"
+		property "sonar.token", System.getenv("SONAR_TOKEN")
+		property "sonar.host.url", "https://sonarcloud.io"
+		property "sonar.projectBaseDir", "${project.projectDir}"
+		property "sonar.java.binaries", layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
+		property "sonar.coverage.jacoco.xmlReportPaths", layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml").get().asFile.absolutePath
+		property "sonar.newCode.period", "previous_version"
+		property "sonar.newCode.referenceBranch", "main"
+	}
 }
