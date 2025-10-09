@@ -1,5 +1,8 @@
 # Release Notes
 
+## Version 1.1.2
+
+        * [CP-3757] - Switch CI to GitHub Actions
 ## Version 1.1.1
 
         * [CP-3533] - Expose springboot actuator endpoints through camel route
