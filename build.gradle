@@ -2,16 +2,22 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '2.7.6'
 	id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+	id 'jacoco'
+	id 'org.sonarqube' version '4.4.1.3373'
 }
 
 group = 'org.mifos'
 sourceCompatibility = '17'
-version = '1.1.1'
+version = '1.1.2'
 
 def camelCoreVersion = '3.19.0'
+def phConnectorCommonVersion = '1.5.1-gazelle'
 
 repositories {
 	mavenCentral()
+	maven {
+		url = uri("https://mifos.jfrog.io/artifactory/phee-gradle-local")
+	}
 	maven {
 		url = uri('https://secure-api.oneacrefund.org/s3/artifacts')
 	}
@@ -29,13 +35,16 @@ dependencies {
 	implementation "org.apache.camel:camel-http:${camelCoreVersion}"
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.14.0'
 	implementation 'org.json:json:20220924'
-	implementation 'org.mifos:ph-ee-connector-common:1.5.1-SNAPSHOT'
+	implementation "org.mifos:ph-ee-connector-common:${phConnectorCommonVersion}"
 	implementation "org.apache.camel:camel-bean-validator:${camelCoreVersion}"
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation "org.apache.camel:camel-test-spring-junit5:${camelCoreVersion}"
+	testImplementation "org.apache.camel:camel-mock:${camelCoreVersion}"
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy jacocoTestReport
 }
 
 tasks.register('printVersion') {
@@ -46,4 +55,29 @@ tasks.register('printVersion') {
 bootJar {
 	// Ensure that the version is excluded from the jar name, so the Dockerfile doesn't break.
 	archiveVersion = ''
+}
+
+jacocoTestReport {
+	dependsOn test // Ensures tests are run before generating the report
+	reports {
+		xml.required = true // Enable XML report generation
+		html.required = true // Enable HTML report generation
+		xml.destination file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml")
+		html.destination file("${buildDir}/reports/jacoco/test/html")
+	}
+}
+
+
+sonarqube {
+	properties {
+		property "sonar.projectKey", "one-acre-fund_ph-ee-connector-airtel"
+		property "sonar.organization", "one-acre-fund"
+		property "sonar.token", System.getenv("SONAR_TOKEN")
+		property "sonar.host.url", "https://sonarcloud.io"
+		property "sonar.projectBaseDir", "${project.projectDir}"
+		property "sonar.java.binaries", layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
+		property "sonar.coverage.jacoco.xmlReportPaths", layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml").get().asFile.absolutePath
+		property "sonar.newCode.period", "previous_version"
+		property "sonar.newCode.referenceBranch", "main"
+	}
 }
