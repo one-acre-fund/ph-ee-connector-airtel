@@ -80,7 +80,7 @@ public class AirtelUtils {
      *                           to be received
      * @return list of custom data
      */
-    private static List<CustomData> createCustomData(ChannelValidationResponse validationResponse,
+    public static List<CustomData> createCustomData(ChannelValidationResponse validationResponse,
                                                      String businessShortCode, String timer) {
         CustomData reconciled = new CustomData(PARTY_LOOKUP_FAILED,
             !validationResponse.reconciled());
