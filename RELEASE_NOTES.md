@@ -1,5 +1,9 @@
 # Release Notes
 
+## Version 1.1.3
+
+        * [SER-3700] - Add paymentScheme to payments variables to indicate the MNO used
+
 ## Version 1.1.2
 
         * [CP-3757] - Switch CI to GitHub Actions

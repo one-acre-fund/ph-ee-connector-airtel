@@ -2,12 +2,14 @@ package org.mifos.connector.airtel.util;
 
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.SECONDARY_IDENTIFIER_NAME;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AIRTEL_CONSTANT;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AMS;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CONFIRMATION_RECEIVED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CONFIRMATION_TIMER;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INITIATOR_FSP_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.PARTY_LOOKUP_FAILED;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.PAYMENT_SCHEME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 
@@ -93,8 +95,9 @@ public class AirtelUtils {
         CustomData currency = new CustomData(CURRENCY, validationResponse.currency());
         CustomData initiatorFspId = new CustomData(INITIATOR_FSP_ID, businessShortCode);
         CustomData confirmationTimer = new CustomData(CONFIRMATION_TIMER, timer);
+        CustomData paymentScheme = new CustomData(PAYMENT_SCHEME, AIRTEL_CONSTANT);
         return List.of(reconciled, confirmationReceived, transactionId, ams, tenantId,
-            clientCorrelationId, currency, initiatorFspId, confirmationTimer);
+            clientCorrelationId, currency, initiatorFspId, confirmationTimer, paymentScheme);
     }
 
 }
