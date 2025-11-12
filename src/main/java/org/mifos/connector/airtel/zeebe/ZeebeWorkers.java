@@ -7,6 +7,7 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.CORRELATIO
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COUNTRY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.DEPLOYED_PROCESS;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CHANNEL_REQUEST;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
@@ -16,6 +17,7 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.GET_TRANSACTION_STATUS_WORKER_NAME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INIT_TRANSFER_WORKER_NAME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.SERVER_TRANSACTION_STATUS_RETRY_COUNT;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TIMER;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
@@ -112,6 +114,7 @@ public class ZeebeWorkers {
                         .getCountry());
                     exchange.setProperty(CURRENCY, collectionRequestDto.getTransaction()
                         .getCurrency());
+                    exchange.setProperty(PLATFORM_TENANT_ID, variables.get(TENANT_ID));
 
                     variables.put(COLLECTION_REQUEST_BODY, collectionRequestDto.toString());
 

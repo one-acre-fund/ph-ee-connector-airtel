@@ -1,5 +1,6 @@
 package org.mifos.connector.airtel.camel.routes;
 
+import static org.mifos.connector.airtel.util.AirtelUtils.getCountryFromExchange;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 
 import java.time.LocalDateTime;
@@ -38,7 +39,7 @@ public class AuthRouteBuilder extends RouteBuilder {
         from("direct:get-access-token")
             .id("get-access-token")
             .choice()
-            .when(exchange -> accessTokenStore.isValid(LocalDateTime.now()))
+            .when(exchange -> accessTokenStore.isValid(getCountryFromExchange(exchange), LocalDateTime.now()))
             .log("Access token valid. Continuing.")
             .otherwise()
             .log("Access token expired or not present")
@@ -60,7 +61,7 @@ public class AuthRouteBuilder extends RouteBuilder {
             .log(LoggingLevel.INFO, "Fetching access token")
             .setHeader(Exchange.HTTP_METHOD, constant("POST"))
             .setHeader("Content-Type", constant("application/json"))
-            .setBody(exchange -> airtelProps.getCredentials())
+            .setBody(exchange -> airtelProps.getCredentials(getCountryFromExchange(exchange)))
             .marshal().json(JsonLibrary.Jackson)
             .toD(airtelProps.getApi().getBaseUrl() + airtelProps.getApi().getAuthEndpoint()
                 + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
@@ -74,9 +75,9 @@ public class AuthRouteBuilder extends RouteBuilder {
             .unmarshal().json(AuthResponseDto.class)
             .process(exchange -> {
                 AuthResponseDto response = exchange.getIn().getBody(AuthResponseDto.class);
-                accessTokenStore.setAccessToken(response.accessToken());
-                accessTokenStore.setExpiresOn(response.expiresIn());
-                logger.info("Saved Access Token: " + accessTokenStore.getAccessToken());
+                accessTokenStore.setAccessToken(getCountryFromExchange(exchange),
+                        response.accessToken(), response.expiresIn());
+                logger.info("Saved Access Token");
             });
 
         /*
