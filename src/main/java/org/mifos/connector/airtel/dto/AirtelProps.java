@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 /**
  * Holds data required for communicating with Airtel.
  */
@@ -11,7 +13,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "airtel")
 public class AirtelProps {
     private Api api;
-    private Credentials credentials;
+    private Map<String, Credentials> credentials;
     private int maxRetryCount;
     private int timeout;
 
@@ -23,11 +25,11 @@ public class AirtelProps {
         this.api = api;
     }
 
-    public Credentials getCredentials() {
-        return credentials;
+    public Credentials getCredentials(String countryFromExchange) {
+        return credentials.get(countryFromExchange);
     }
 
-    public void setCredentials(Credentials credentials) {
+    public void setCredentials(Map<String, Credentials> credentials) {
         this.credentials = credentials;
     }
 

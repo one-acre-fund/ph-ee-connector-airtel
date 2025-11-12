@@ -1,37 +1,37 @@
 package org.mifos.connector.airtel.store;
 
-import java.time.LocalDateTime;
 import org.springframework.stereotype.Component;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Contains access token information.
+ * Class that holds the access tokens by country.
  */
 @Component
 public class AccessTokenStore {
-    private String accessToken;
-    private LocalDateTime expiresOn;
+    private final ConcurrentHashMap<String, TokenEntry> tokens = new ConcurrentHashMap<>();
 
-    public AccessTokenStore() {
-        this.expiresOn = LocalDateTime.now();
+    public void setAccessToken(String country, String accessToken, int expiresIn) {
+        tokens.put(country, new TokenEntry(accessToken, LocalDateTime.now().plusSeconds(expiresIn)));
     }
 
-    public String getAccessToken() {
-        return accessToken;
+    public TokenEntry getAccessToken(String country) {
+        return tokens.get(country);
     }
 
-    public void setAccessToken(String accessToken) {
-        this.accessToken = accessToken;
+    public LocalDateTime getExpiresOn(String country) {
+        return getAccessToken(country).getExpiresOn();
     }
 
-    public LocalDateTime getExpiresOn() {
-        return expiresOn;
-    }
-
-    public void setExpiresOn(int expiresIn) {
-        this.expiresOn = LocalDateTime.now().plusSeconds(expiresIn);
-    }
-
-    public boolean isValid(LocalDateTime dateTime) {
-        return dateTime.isBefore(expiresOn);
+    /**
+     * Checks if the token is still valid.
+     *
+     * @param dateTime
+     *            the date to check time against
+     * @return boolean
+     */
+    public boolean isValid(String country, LocalDateTime dateTime) {
+        TokenEntry expiry = getAccessToken(country);
+        return expiry != null && dateTime != null && dateTime.isBefore(expiry.getExpiresOn());
     }
 }
