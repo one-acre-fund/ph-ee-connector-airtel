@@ -63,7 +63,7 @@ logging:
     ROOT: INFO
 
 channel:
-  host: "http://localhost:8022"
+  host: "http://localhost:8080"
 
 paybill:
   account-holding-institution-id: oaf
@@ -78,6 +78,3 @@ paybill:
       ams-url: http://localhost:5005
       identifier: FINERACTACCOUNTID
   default-short-code: 123456
-
-server:
-  port: 8023
