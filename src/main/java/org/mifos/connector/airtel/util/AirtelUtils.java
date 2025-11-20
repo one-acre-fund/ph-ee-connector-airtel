@@ -18,6 +18,7 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.camel.Exchange;
 import org.mifos.connector.airtel.dto.ChannelValidationResponse;
@@ -113,6 +114,19 @@ public class AirtelUtils {
      */
     public static String getCountryFromExchange(Exchange exchange) {
         return Optional.ofNullable(exchange.getProperty(PLATFORM_TENANT_ID, String.class)).orElse(DEFAULT_TENANT);
+    }
+
+    private static final Map<String, String> currencyToCountryMap = Map.of("ZMW", "zambia", "RWF", "rwanda");
+
+    /**
+     * Gets the country based on the currency.
+     *
+     * @param currency
+     *            the currency code
+     * @return the country
+     */
+    public static String getCountryFromCurrency(String currency) {
+        return currencyToCountryMap.getOrDefault(currency, "rwanda");
     }
 
 }

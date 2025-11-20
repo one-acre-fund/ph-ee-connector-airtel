@@ -9,6 +9,7 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.DEPLOYED_PROCESS;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
+import static org.mifos.connector.airtel.util.AirtelUtils.getCountryFromCurrency;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CHANNEL_REQUEST;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_CODE;
@@ -114,7 +115,7 @@ public class ZeebeWorkers {
                         .getCountry());
                     exchange.setProperty(CURRENCY, collectionRequestDto.getTransaction()
                         .getCurrency());
-                    exchange.setProperty(PLATFORM_TENANT_ID, variables.get(TENANT_ID));
+                    exchange.setProperty(PLATFORM_TENANT_ID, getCountryFromCurrency(collectionRequestDto.getSubscriber().getCurrency()));
 
                     variables.put(COLLECTION_REQUEST_BODY, collectionRequestDto.toString());
 
@@ -190,6 +191,7 @@ public class ZeebeWorkers {
                         .getCountry());
                     exchange.setProperty(CURRENCY, collectionRequestDto.getTransaction()
                         .getCurrency());
+                    exchange.setProperty(PLATFORM_TENANT_ID, getCountryFromCurrency(collectionRequestDto.getSubscriber().getCurrency()));
                     producerTemplate.send("direct:get-transaction-status-base", exchange);
                 }
                 client.newCompleteCommand(job.getKey())

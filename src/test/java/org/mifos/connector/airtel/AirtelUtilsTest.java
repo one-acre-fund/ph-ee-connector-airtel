@@ -48,4 +48,18 @@ public class AirtelUtilsTest {
         assertEquals("rwanda", result);
     }
 
+    @DisplayName("getCountryFromCurrency returns 'zambia' for ZMW")
+    @Test
+    void test_getCountryFromCurrency_with_ZMW() {
+        assertEquals("zambia", AirtelUtils.getCountryFromCurrency("ZMW"));
+    }
+
+    @DisplayName("getCountryFromCurrency returns 'rwanda' for non-ZMW currency")
+    @Test
+    void test_getCountryFromCurrency_with_non_ZMW() {
+        assertEquals("rwanda", AirtelUtils.getCountryFromCurrency("EUR"));
+        assertEquals("rwanda", AirtelUtils.getCountryFromCurrency("USD"));
+        assertEquals("rwanda", AirtelUtils.getCountryFromCurrency("RWF"));
+    }
+
 }
