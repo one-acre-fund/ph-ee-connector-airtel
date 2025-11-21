@@ -25,13 +25,18 @@ airtel:
     collection-endpoint: /merchant/v1/payments/
     status-endpoint: /standard/v1/payments
   credentials:
-    client-id: "abc"
-    client-secret: "xyz"
-    grant-type: "client_credentials"
+    zambia:
+      client-id: "abc"
+      client-secret: "xyz"
+      grant-type: "client_credentials"
+    rwanda:
+      client-id: "abc"
+      client-secret: "xyz"
+      grant-type: "client_credentials"
   max-retry-count: 3
   timeout: 6000
 
-countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE", "mwk": "MW"}'
+countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE", "mwk": "MW", "zmw": "ZM", "zmk": "ZM"}'
 
 transaction-id-prefix: oaf-
 

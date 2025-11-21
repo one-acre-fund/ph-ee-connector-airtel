@@ -5,10 +5,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 
+/**
+ * Tests for the AirtelMoneyConnectorApplication class.
+ */
 @SpringBootTest
 @CamelSpringBootTest
 @EnableAutoConfiguration
-class AirtelMoneyConnectorApplicationTests {
+public class AirtelMoneyConnectorApplicationTests {
 
     @Test
     void contextLoads() {

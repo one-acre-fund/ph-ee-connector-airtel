@@ -1,7 +1,9 @@
 package org.mifos.connector.airtel.util;
 
-import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.SECONDARY_IDENTIFIER_NAME;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.DEFAULT_TENANT;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AIRTEL_CONSTANT;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AMS;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
@@ -16,6 +18,9 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.apache.camel.Exchange;
 import org.mifos.connector.airtel.dto.ChannelValidationResponse;
 import org.mifos.connector.common.gsma.dto.CustomData;
 import org.mifos.connector.common.gsma.dto.GsmaTransfer;
@@ -98,6 +103,30 @@ public class AirtelUtils {
         CustomData paymentScheme = new CustomData(PAYMENT_SCHEME, AIRTEL_CONSTANT);
         return List.of(reconciled, confirmationReceived, transactionId, ams, tenantId,
             clientCorrelationId, currency, initiatorFspId, confirmationTimer, paymentScheme);
+    }
+
+    /**
+     * Retrieves the country from the exchange properties.
+     *
+     * @param exchange
+     *            the Camel exchange
+     * @return the country code or the default tenant if not found
+     */
+    public static String getCountryFromExchange(Exchange exchange) {
+        return Optional.ofNullable(exchange.getProperty(PLATFORM_TENANT_ID, String.class)).orElse(DEFAULT_TENANT);
+    }
+
+    private static final Map<String, String> currencyToCountryMap = Map.of("ZMW", "zambia", "RWF", "rwanda");
+
+    /**
+     * Gets the country based on the currency.
+     *
+     * @param currency
+     *            the currency code
+     * @return the country
+     */
+    public static String getCountryFromCurrency(String currency) {
+        return currencyToCountryMap.getOrDefault(currency, "rwanda");
     }
 
 }

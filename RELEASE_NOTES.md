@@ -3,6 +3,7 @@
 ## Version 1.1.3
 
         * [SER-3700] - Add paymentScheme to payments variables to indicate the MNO used
+        * [SER-3924] - Add suppport for for Airtel MNO Mobile Money clients in Zambia
 
 ## Version 1.1.2
 
