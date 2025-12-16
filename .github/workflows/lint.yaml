@@ -40,6 +40,7 @@ jobs:
       # MegaLinter
       - name: MegaLinter
         id: ml
+        timeout-minutes: 10
         # You can override MegaLinter flavor used to have faster performances
         # More info at https://megalinter.github.io/flavors/
         uses: oxsecurity/megalinter/flavors/java@v9.2.0
