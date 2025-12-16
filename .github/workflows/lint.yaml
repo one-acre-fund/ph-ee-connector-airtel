@@ -25,6 +25,10 @@ jobs:
   build:
     name: MegaLinter
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       # Git Checkout
       - name: Checkout Code
@@ -36,9 +40,10 @@ jobs:
       # MegaLinter
       - name: MegaLinter
         id: ml
+        timeout-minutes: 10
         # You can override MegaLinter flavor used to have faster performances
         # More info at https://megalinter.github.io/flavors/
-        uses: oxsecurity/megalinter@v6
+        uses: oxsecurity/megalinter/flavors/java@v9.2.0
         env:
           # All available variables are described in documentation
           # https://megalinter.github.io/configuration/
