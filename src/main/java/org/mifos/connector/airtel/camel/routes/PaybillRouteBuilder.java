@@ -59,6 +59,7 @@ public class PaybillRouteBuilder extends RouteBuilder {
     private final ZeebeClient zeebeClient;
     private final PaybillProps paybillProps;
     private final String channelUrl;
+    private final AirtelUtils airtelUtils;
 
     /**
      * Creates a new {@link PaybillRouteBuilder} object.
@@ -68,10 +69,11 @@ public class PaybillRouteBuilder extends RouteBuilder {
      * @param channelUrl   the URL to be used in communicating with the channel connector
      */
     public PaybillRouteBuilder(ZeebeClient zeebeClient, PaybillProps paybillProps,
-                               @Value("${channel.host}") String channelUrl) {
+                               @Value("${channel.host}") String channelUrl, AirtelUtils airtelUtils) {
         this.zeebeClient = zeebeClient;
         this.paybillProps = paybillProps;
         this.channelUrl = channelUrl;
+        this.airtelUtils = airtelUtils;
     }
 
     @Override
@@ -185,9 +187,10 @@ public class PaybillRouteBuilder extends RouteBuilder {
             .id("paybill-transaction-status-check-base")
             .process(exchange -> {
                 exchange.getIn().removeHeaders("*");
+                AirtelConfirmationRequest request = exchange.getProperty(CONFIRMATION_REQUEST_BODY,
+                        AirtelConfirmationRequest.class);
+                exchange.getIn().setHeader(PLATFORM_TENANT_ID, airtelUtils.getCountryFromCurrency(request.currency()));
                 exchange.getIn().setBody(null);
-                exchange.getIn().setHeader(PLATFORM_TENANT_ID,
-                    paybillProps.getAccountHoldingInstitutionId());
                 exchange.getIn().setHeader("requestType", "transfers");
             })
             .toD(channelUrl + "/channel/transfer/${header.transactionId}"

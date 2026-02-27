@@ -25,12 +25,20 @@ import org.mifos.connector.airtel.dto.ChannelValidationResponse;
 import org.mifos.connector.common.gsma.dto.CustomData;
 import org.mifos.connector.common.gsma.dto.GsmaTransfer;
 import org.mifos.connector.common.gsma.dto.Party;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /**
  * Utility class containing methods for Airtel related operations.
  */
+@Component
 public class AirtelUtils {
-    private AirtelUtils() {
+
+    @Autowired
+    private CountryProps countryProps;
+
+    public AirtelUtils(CountryProps countryProps) {
+        this.countryProps = countryProps;
     }
 
     /**
@@ -116,8 +124,6 @@ public class AirtelUtils {
         return Optional.ofNullable(exchange.getProperty(PLATFORM_TENANT_ID, String.class)).orElse(DEFAULT_TENANT);
     }
 
-    private static final Map<String, String> currencyToCountryMap = Map.of("ZMW", "zambia", "RWF", "rwanda");
-
     /**
      * Gets the country based on the currency.
      *
@@ -125,8 +131,8 @@ public class AirtelUtils {
      *            the currency code
      * @return the country
      */
-    public static String getCountryFromCurrency(String currency) {
-        return currencyToCountryMap.getOrDefault(currency, "rwanda");
+    public String getCountryFromCurrency(String currency) {
+        return countryProps.getCurrency().getOrDefault(currency, "rwanda");
     }
 
 }

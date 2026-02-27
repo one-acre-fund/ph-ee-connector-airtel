@@ -38,6 +38,11 @@ airtel:
 
 countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE", "mwk": "MW", "zmw": "ZM", "zmk": "ZM"}'
 
+country:
+  currency:
+    ZMW: zambia
+    RWF: rwanda
+
 transaction-id-prefix: oaf-
 
 management:
