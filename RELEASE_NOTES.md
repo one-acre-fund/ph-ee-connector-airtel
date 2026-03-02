@@ -1,5 +1,9 @@
 # Release Notes
 
+## Version 1.1.5
+
+        * [CP-3931] - Derive Platform-TenantId from payment currency via country mapping for multitenancy.
+
 ## Version 1.1.4
 
         * [CP-3980] - Integrate Elastic APM with PH

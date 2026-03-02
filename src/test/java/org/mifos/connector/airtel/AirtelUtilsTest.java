@@ -1,14 +1,17 @@
 package org.mifos.connector.airtel;
 
 import java.util.List;
+import java.util.Map;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.DefaultExchange;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mifos.connector.airtel.dto.ChannelValidationResponse;
 import org.mifos.connector.airtel.util.AirtelUtils;
+import org.mifos.connector.airtel.util.CountryProps;
 import org.mifos.connector.common.gsma.dto.CustomData;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,6 +21,15 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AIRTEL_CONSTANT;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.PAYMENT_SCHEME;
 
 public class AirtelUtilsTest {
+
+    private AirtelUtils airtelUtils;
+
+    @BeforeEach
+    void setUp() {
+        CountryProps countryProps = new CountryProps();
+        countryProps.setCurrency(Map.of("ZMW", "zambia"));
+        airtelUtils = new AirtelUtils(countryProps);
+    }
 
     @Test
     void testCreateCustomData_containsPaymentScheme() {
@@ -51,15 +63,15 @@ public class AirtelUtilsTest {
     @DisplayName("getCountryFromCurrency returns 'zambia' for ZMW")
     @Test
     void test_getCountryFromCurrency_with_ZMW() {
-        assertEquals("zambia", AirtelUtils.getCountryFromCurrency("ZMW"));
+        assertEquals("zambia", airtelUtils.getCountryFromCurrency("ZMW"));
     }
 
     @DisplayName("getCountryFromCurrency returns 'rwanda' for non-ZMW currency")
     @Test
     void test_getCountryFromCurrency_with_non_ZMW() {
-        assertEquals("rwanda", AirtelUtils.getCountryFromCurrency("EUR"));
-        assertEquals("rwanda", AirtelUtils.getCountryFromCurrency("USD"));
-        assertEquals("rwanda", AirtelUtils.getCountryFromCurrency("RWF"));
+        assertEquals("rwanda", airtelUtils.getCountryFromCurrency("EUR"));
+        assertEquals("rwanda", airtelUtils.getCountryFromCurrency("USD"));
+        assertEquals("rwanda", airtelUtils.getCountryFromCurrency("RWF"));
     }
 
 }
