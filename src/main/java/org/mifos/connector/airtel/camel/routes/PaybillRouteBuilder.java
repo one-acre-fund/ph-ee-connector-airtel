@@ -229,7 +229,7 @@ public class PaybillRouteBuilder extends RouteBuilder {
                     .getBody(ChannelValidationResponse.class);
                 exchange.getIn().removeHeaders("*");
                 exchange.getIn().setHeader(ACCOUNT_HOLDING_INSTITUTION_ID,
-                    validationResponse.accountHoldingInstitutionId());
+                    airtelUtils.getCountryFromCurrency(validationResponse.currency()));
                 exchange.getIn().setHeader(AMS_NAME, validationResponse.amsName());
                 exchange.getIn().setHeader(TENANT_ID,
                     validationResponse.accountHoldingInstitutionId());
