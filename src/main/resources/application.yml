@@ -42,6 +42,7 @@ country:
   currency:
     ZMW: zambia
     RWF: rwanda
+    MWK: malawi
 
 transaction-id-prefix: oaf-
 
