@@ -1,5 +1,9 @@
 # Release Notes
 
+## Version 1.1.5.1
+
+        * [CP-3931] - Update country currency mapping for multitenancy to use Malawi for MWK
+
 ## Version 1.1.5
 
         * [CP-3931] - Derive Platform-TenantId from payment currency via country mapping for multitenancy.
