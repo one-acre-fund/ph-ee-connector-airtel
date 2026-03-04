@@ -27,7 +27,7 @@ public class AirtelUtilsTest {
     @BeforeEach
     void setUp() {
         CountryProps countryProps = new CountryProps();
-        countryProps.setCurrency(Map.of("ZMW", "zambia"));
+        countryProps.setCurrency(Map.of("ZMW", "zambia", "MWK", "malawi"));
         airtelUtils = new AirtelUtils(countryProps);
     }
 
@@ -74,4 +74,9 @@ public class AirtelUtilsTest {
         assertEquals("rwanda", airtelUtils.getCountryFromCurrency("RWF"));
     }
 
+    @DisplayName("getCountryFromCurrency returns 'malawi' for MWK")
+    @Test
+    void test_getCountryFromCurrency_with_MWK() {
+        assertEquals("malawi", airtelUtils.getCountryFromCurrency("MWK"));
+    }
 }
