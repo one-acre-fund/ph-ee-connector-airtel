@@ -61,9 +61,14 @@ public class AuthRouteBuilder extends RouteBuilder {
             .log(LoggingLevel.INFO, "Fetching access token")
             .setHeader(Exchange.HTTP_METHOD, constant("POST"))
             .setHeader("Content-Type", constant("application/json"))
-            .setBody(exchange -> airtelProps.getCredentials(getCountryFromExchange(exchange)))
+            .process(exchange -> {
+                String country = getCountryFromExchange(exchange);
+                AirtelProps.Credentials credentials = airtelProps.getCredentials(country);
+                exchange.setProperty("baseUrl", credentials.getBaseUrl());
+                exchange.getIn().setBody(credentials);
+            })
             .marshal().json(JsonLibrary.Jackson)
-            .toD(airtelProps.getApi().getBaseUrl() + airtelProps.getApi().getAuthEndpoint()
+            .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getAuthEndpoint()
                 + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
                 + ConnectionUtils.getConnectionTimeoutDsl(airtelProps.getTimeout()));
 

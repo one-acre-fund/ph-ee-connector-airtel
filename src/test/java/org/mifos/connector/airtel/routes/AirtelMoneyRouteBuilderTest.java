@@ -3,6 +3,7 @@ package org.mifos.connector.airtel.routes;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.ACCESS_TOKEN;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_REQUEST_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
@@ -178,6 +179,67 @@ class AirtelMoneyRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
         assertNull(failureExchange.getProperty(ACCESS_TOKEN), "Access token must not be set when ERROR_INFORMATION is present");
         assertTrue((Boolean) failureExchange.getProperty(TRANSACTION_FAILED), "Transaction failed should be true on failure status path");
         assertTrue((Boolean) failureExchange.getProperty(IS_RETRY_EXCEEDED), "Retry exceeded should be true on failure status path");
+    }
+
+    @DisplayName("Test collection-request route resolves baseUrl from PLATFORM_TENANT_ID via getCountryFromExchange")
+    @Test
+    void testCollectionRequestResolvesCountryBaseUrl() throws Exception {
+        RouteDefinition route = findRouteByInputUri("direct:collection-request");
+        AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
+            a.interceptSendToEndpoint("https://*")
+                .skipSendToOriginalEndpoint()
+                .to("mock:collection-https-sink")
+        );
+
+        if (!camelContext.isStarted()) {
+            camelContext.start();
+        }
+
+        MockEndpoint mockSink = camelContext.getEndpoint("mock:collection-https-sink", MockEndpoint.class);
+        mockSink.expectedMessageCount(1);
+
+        Exchange exchange = camelContext.getEndpoint("direct:collection-request").createExchange();
+        exchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
+        exchange.setProperty(ACCESS_TOKEN, "test-token");
+        exchange.setProperty(COLLECTION_REQUEST_BODY, buildCollectionRequest());
+        producerTemplate.send("direct:collection-request", exchange);
+        assertEquals("https://openapiuat.airtel.africa.co.rw", exchange.getProperty("baseUrl"),
+                "baseUrl should resolve to the rwanda base URL when PLATFORM_TENANT_ID=rwanda");
+    }
+
+    @DisplayName("Test airtel-transaction-status route resolves baseUrl from PLATFORM_TENANT_ID via getCountryFromExchange")
+    @Test
+    void testTransactionStatusResolvesCountryBaseUrl() throws Exception {
+        RouteDefinition route = findRouteByInputUri("direct:airtel-transaction-status");
+        AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
+            a.interceptSendToEndpoint("https://*")
+                .skipSendToOriginalEndpoint()
+                .to("mock:status-https-sink")
+        );
+
+        if (!camelContext.isStarted()) {
+            camelContext.start();
+        }
+
+        MockEndpoint mockSink = camelContext.getEndpoint("mock:status-https-sink", MockEndpoint.class);
+        mockSink.expectedMessageCount(1);
+        Exchange exchange = camelContext.getEndpoint("direct:airtel-transaction-status").createExchange();
+        exchange.setProperty(PLATFORM_TENANT_ID, "zambia");
+        exchange.setProperty(ACCESS_TOKEN, "test-token");
+        exchange.setProperty(COLLECTION_TRANSACTION_ID, "txn-xyz");
+        exchange.setProperty("country", "ZM");
+        exchange.setProperty("currency", "ZMW");
+        producerTemplate.send("direct:airtel-transaction-status", exchange);
+        assertEquals("https://openapiuat.airtel.co.zm", exchange.getProperty("baseUrl"),
+                "baseUrl should resolve to the zambia base URL when PLATFORM_TENANT_ID=zambia");
+    }
+
+    private RouteDefinition findRouteByInputUri(String uri) {
+        return camelContext.adapt(ModelCamelContext.class)
+                .getRouteDefinitions().stream()
+                .filter(r -> r.getInput() != null && uri.equals(r.getInput().getUri()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Route with input uri " + uri + " not found"));
     }
 
 }
