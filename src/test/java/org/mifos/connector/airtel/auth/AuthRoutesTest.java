@@ -103,7 +103,7 @@ class AuthRoutesTest extends AirtelMoneyConnectorApplicationTests {
         Exchange exchange = camelContext.getEndpoint("direct:access-token-fetch").createExchange();
         exchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
         producerTemplate.send("direct:access-token-fetch", exchange);
-        assertEquals("https://openapiuat.airtel.africa.co.rw", exchange.getProperty("baseUrl"),
+        assertEquals("https://openapiuat.airtel.co.rw", exchange.getProperty("baseUrl"),
                 "baseUrl should resolve to the rwanda base URL when PLATFORM_TENANT_ID=rwanda");
     }
 

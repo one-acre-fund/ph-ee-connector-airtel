@@ -96,7 +96,7 @@ public class AirtelProps {
         private String grantType;
 
         @JsonProperty("base_url")
-        private String baseUrl;;
+        private String baseUrl;
 
         public String getClientId() {
             return clientId;
