@@ -78,7 +78,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .choice()
                 .when(exchangeProperty(ERROR_INFORMATION).isNull())
                     .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
-                        accessTokenStore.getAccessToken(getCountryFromExchange(exchange))))
+                        accessTokenStore.getAccessToken(getCountryFromExchange(exchange)).getToken()))
                     .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
                     .to("direct:collection-request")
                     .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")
@@ -155,7 +155,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .choice()
                 .when(exchangeProperty(ERROR_INFORMATION).isNull())
                     .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
-                        accessTokenStore.getAccessToken(getCountryFromExchange(exchange))))
+                        accessTokenStore.getAccessToken(getCountryFromExchange(exchange)).getToken()))
                     .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
                     .to("direct:airtel-transaction-status")
                     .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")

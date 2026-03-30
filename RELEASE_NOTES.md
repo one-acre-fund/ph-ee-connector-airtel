@@ -1,9 +1,12 @@
 # Release Notes
 
+## Version 1.1.5.4
+
+        * [CP-3924] - Fix authentication for Airtel (Zambia) Payments Integration with PH
+
 ## Version 1.1.5.3
 
         * [CP-3924] - Fix NPE bug in Airtel (Zambia) Payments Integration with PH
-
 
 ## Version 1.1.5.2
 
