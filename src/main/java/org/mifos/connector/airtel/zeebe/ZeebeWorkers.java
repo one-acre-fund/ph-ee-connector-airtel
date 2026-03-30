@@ -49,7 +49,7 @@ public class ZeebeWorkers {
     private static final Logger logger = LoggerFactory.getLogger(ZeebeWorkers.class);
     private final ProducerTemplate producerTemplate;
     private final ZeebeClient zeebeClient;
-    private AirtelUtils airtelUtils;
+    private final AirtelUtils airtelUtils;
     private final CamelContext camelContext;
 
     /**
@@ -75,10 +75,11 @@ public class ZeebeWorkers {
      * @param camelContext     {@link CamelContext}
      */
     public ZeebeWorkers(ProducerTemplate producerTemplate, ZeebeClient zeebeClient,
-                        CamelContext camelContext) {
+                        CamelContext camelContext, AirtelUtils airtelUtils) {
         this.producerTemplate = producerTemplate;
         this.zeebeClient = zeebeClient;
         this.camelContext = camelContext;
+        this.airtelUtils = airtelUtils;
     }
 
     /**
