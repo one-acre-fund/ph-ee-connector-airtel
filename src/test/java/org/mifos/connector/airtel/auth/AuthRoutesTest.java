@@ -1,6 +1,11 @@
 package org.mifos.connector.airtel.auth;
 
+import org.apache.camel.CamelContext;
+import org.apache.camel.Exchange;
 import org.apache.camel.FluentProducerTemplate;
+import org.apache.camel.ProducerTemplate;
+import org.apache.camel.builder.AdviceWithRouteBuilder;
+import org.apache.camel.component.mock.MockEndpoint;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,12 +15,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 
 class AuthRoutesTest extends AirtelMoneyConnectorApplicationTests {
 
     @Autowired
     private FluentProducerTemplate fluentProducerTemplate;
+
+    @Autowired
+    private CamelContext camelContext;
+
+    @Autowired
+    private ProducerTemplate producerTemplate;
 
     @Autowired
     private AccessTokenStore accessTokenStore;
@@ -73,6 +86,25 @@ class AuthRoutesTest extends AirtelMoneyConnectorApplicationTests {
     void testGetAccessTokenRouteExpiredToken() {
         accessTokenStore.setAccessToken("rwanda", "expired-token", -3600);
         Assertions.assertDoesNotThrow(() -> fluentProducerTemplate.to("direct:get-access-token").withBody(null).send());
+    }
+
+    @DisplayName("Test access-token-fetch route resolves baseUrl from PLATFORM_TENANT_ID via getCountryFromExchange")
+    @Test
+    void testAccessTokenFetchResolvesCountryBaseUrl() throws Exception {
+        AdviceWithRouteBuilder.adviceWith(camelContext, "access-token-fetch", a ->
+            a.interceptSendToEndpoint("https://*")
+                .skipSendToOriginalEndpoint()
+                .to("mock:auth-https-sink")
+        );
+
+        MockEndpoint mockSink = camelContext.getEndpoint("mock:auth-https-sink", MockEndpoint.class);
+        mockSink.expectedMessageCount(1);
+
+        Exchange exchange = camelContext.getEndpoint("direct:access-token-fetch").createExchange();
+        exchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
+        producerTemplate.send("direct:access-token-fetch", exchange);
+        assertEquals("https://openapiuat.airtel.co.rw", exchange.getProperty("baseUrl"),
+                "baseUrl should resolve to the rwanda base URL when PLATFORM_TENANT_ID=rwanda");
     }
 
 }

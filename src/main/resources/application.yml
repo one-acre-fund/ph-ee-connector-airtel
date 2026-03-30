@@ -20,16 +20,22 @@ skip:
 
 airtel:
   api:
-    base-url: https://openapiuat.airtel.africa
     auth-endpoint: /auth/oauth2/token
     collection-endpoint: /merchant/v1/payments/
     status-endpoint: /standard/v1/payments
   credentials:
     zambia:
+      base-url: https://openapiuat.airtel.co.zm
       client-id: "abc"
       client-secret: "xyz"
       grant-type: "client_credentials"
     rwanda:
+      base-url: https://openapiuat.airtel.co.rw
+      client-id: "abc"
+      client-secret: "xyz"
+      grant-type: "client_credentials"
+    malawi:
+      base-url: https://openapiuat.airtel.mw
       client-id: "abc"
       client-secret: "xyz"
       grant-type: "client_credentials"

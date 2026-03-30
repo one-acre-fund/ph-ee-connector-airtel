@@ -53,18 +53,9 @@ public class AirtelProps {
      * Holds the relevant Airtel endpoints.
      */
     public static class Api {
-        private String baseUrl;
         private String authEndpoint;
         private String collectionEndpoint;
         private String statusEndpoint;
-
-        public String getBaseUrl() {
-            return baseUrl;
-        }
-
-        public void setBaseUrl(String baseUrl) {
-            this.baseUrl = baseUrl;
-        }
 
         public String getAuthEndpoint() {
             return authEndpoint;
@@ -104,6 +95,9 @@ public class AirtelProps {
         @JsonProperty("grant_type")
         private String grantType;
 
+        @JsonProperty("base_url")
+        private String baseUrl;
+
         public String getClientId() {
             return clientId;
         }
@@ -127,5 +121,14 @@ public class AirtelProps {
         public void setGrantType(String grantType) {
             this.grantType = grantType;
         }
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
     }
 }

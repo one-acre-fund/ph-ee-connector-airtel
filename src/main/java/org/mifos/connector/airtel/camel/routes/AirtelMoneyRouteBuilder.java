@@ -107,7 +107,9 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
                 return collectionRequestDto;
             })
             .marshal().json(JsonLibrary.Jackson)
-            .toD(airtelProps.getApi().getBaseUrl() + airtelProps.getApi().getCollectionEndpoint()
+            .process(exchange -> exchange.setProperty("baseUrl",
+                airtelProps.getCredentials(getCountryFromExchange(exchange)).getBaseUrl()))
+            .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getCollectionEndpoint()
                 + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
                 + ConnectionUtils.getConnectionTimeoutDsl(airtelProps.getTimeout()))
             .process(exchange -> exchange.setProperty(COLLECTION_RESPONSE_BODY,
@@ -178,7 +180,9 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .setHeader("X-Country", simple("${exchangeProperty.country}"))
             .setHeader("X-Currency", simple("${exchangeProperty.currency}"))
             .setHeader("Authorization", simple("Bearer ${exchangeProperty." + ACCESS_TOKEN + "}"))
-            .toD(airtelProps.getApi().getBaseUrl() + airtelProps.getApi().getStatusEndpoint()
+            .process(exchange -> exchange.setProperty("baseUrl",
+                airtelProps.getCredentials(getCountryFromExchange(exchange)).getBaseUrl()))
+            .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getStatusEndpoint()
                 + "/${exchangeProperty." + COLLECTION_TRANSACTION_ID + "}"
                 + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
                 + ConnectionUtils.getConnectionTimeoutDsl(airtelProps.getTimeout()))

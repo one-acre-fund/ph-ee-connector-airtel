@@ -1,5 +1,9 @@
 # Release Notes
 
+## Version 1.1.5.2
+
+        * [CP-3924] - Airtel (Zambia) Payments Integration with PH
+
 ## Version 1.1.5.1
 
         * [CP-3931] - Update country currency mapping for multitenancy to use Malawi for MWK
