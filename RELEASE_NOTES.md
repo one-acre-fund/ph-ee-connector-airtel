@@ -1,5 +1,10 @@
 # Release Notes
 
+## Version 1.1.5.5
+
+        * [FD-1804] - Fix Airtel Transactions Stuck in Retry Loop
+
+
 ## Version 1.1.5.4
 
         * [CP-3924] - Fix authentication for Airtel (Zambia) Payments Integration with PH
