@@ -146,29 +146,39 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
          * Step2: On successful [Step1], directs to [airtel-transaction-status] flow
          */
         from("direct:get-transaction-status-base")
-            .id("get-transaction-status-base")
-            .log(LoggingLevel.INFO, "Starting Airtel transaction status flow")
-            .choice()
-            .when(exchangeProperty(SERVER_TRANSACTION_STATUS_RETRY_COUNT)
-                .isLessThanOrEqualTo(airtelProps.getMaxRetryCount()))
-            .to("direct:get-access-token")
-            .choice()
+                .id("get-transaction-status-base")
+                .log(LoggingLevel.INFO, "Starting Airtel transaction status flow")
+                .choice()
+                .when(exchangeProperty(SERVER_TRANSACTION_STATUS_RETRY_COUNT).isLessThanOrEqualTo(airtelProps.getMaxRetryCount()))
+                .to("direct:get-access-token")
+                .choice()
                 .when(exchangeProperty(ERROR_INFORMATION).isNull())
-                    .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
+                .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
                         accessTokenStore.getAccessToken(getCountryFromExchange(exchange)).getToken()))
-                    .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
-                    .to("direct:airtel-transaction-status")
-                    .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")
-                    .log(LoggingLevel.INFO, "Transaction status API response: ${body}")
-                    .to("direct:transaction-status-response-handler")
+                .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
+                .to("direct:airtel-transaction-status")
+                .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")
+                .log(LoggingLevel.INFO, "Transaction status API response: ${body}")
+                .to("direct:transaction-status-response-handler")
                 .otherwise()
-                    .log(LoggingLevel.ERROR, "Access token acquisition failed. Halting transaction status flow.")
-                    .process(exchange -> {
-                        exchange.setProperty(IS_RETRY_EXCEEDED, true);
-                        exchange.setProperty(TRANSACTION_FAILED, true);
-                    })
-                    .process(collectionResponseProcessor)
-            .end();
+                .log(LoggingLevel.ERROR, "Access token acquisition failed. Halting transaction status flow.")
+                .process(exchange -> {
+                    exchange.setProperty(TRANSACTION_FAILED, true);
+                })
+                .process(collectionResponseProcessor)
+                .endChoice()
+                .otherwise()
+                .log(LoggingLevel.ERROR, "Max retry count exceeded for transaction status. Marking transaction as " +
+                        "failed.")
+                .process(exchange -> {
+                    exchange.setProperty(IS_RETRY_EXCEEDED, true);
+                    exchange.setProperty(TRANSACTION_FAILED, true);
+                    exchange.setProperty(ERROR_CODE, "RETRY_EXCEEDED");
+                    exchange.setProperty(ERROR_DESCRIPTION, "Max retry count exceeded while fetching transaction " +
+                            "status");
+                })
+                .process(collectionResponseProcessor)
+                .end();
 
         /*
          * Retrieves the transaction status by calling the Airtel status endpoint
