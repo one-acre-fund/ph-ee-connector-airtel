@@ -1,15 +1,14 @@
 package org.mifos.connector.airtel.auth;
 
-import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
-import org.apache.camel.FluentProducerTemplate;
-import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
+import org.apache.camel.support.DefaultExchange;
 import org.apache.camel.component.mock.MockEndpoint;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mifos.connector.airtel.AirtelMoneyConnectorApplicationTests;
+import org.mifos.connector.airtel.CamelRouteTestSupport;
 import org.mifos.connector.airtel.store.AccessTokenStore;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -19,19 +18,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 
-class AuthRoutesTest extends AirtelMoneyConnectorApplicationTests {
-
-    @Autowired
-    private FluentProducerTemplate fluentProducerTemplate;
-
-    @Autowired
-    private CamelContext camelContext;
-
-    @Autowired
-    private ProducerTemplate producerTemplate;
+class AuthRoutesTest extends CamelRouteTestSupport {
 
     @Autowired
     private AccessTokenStore accessTokenStore;
+
+    @BeforeEach
+    void clearAccessTokenStore() {
+        //accessTokenStore.clear();
+    }
 
     @DisplayName("Test Access Token Save Route")
     @Test
@@ -45,8 +40,10 @@ class AuthRoutesTest extends AirtelMoneyConnectorApplicationTests {
                 }
                 """;
 
-        // Send input to the route
-        fluentProducerTemplate.to("direct:access-token-save").withBody(inputJson).send();
+        Exchange exchange = new DefaultExchange(camelContext);
+        exchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
+        exchange.getIn().setBody(inputJson);
+        producerTemplate.send("direct:access-token-save", exchange);
 
         LocalDateTime actualExpirationTime = accessTokenStore.getExpiresOn("rwanda");
         LocalDateTime expectedExpirationTime = LocalDateTime.now().plusSeconds(3600);
@@ -91,11 +88,13 @@ class AuthRoutesTest extends AirtelMoneyConnectorApplicationTests {
     @DisplayName("Test access-token-fetch route resolves baseUrl from PLATFORM_TENANT_ID via getCountryFromExchange")
     @Test
     void testAccessTokenFetchResolvesCountryBaseUrl() throws Exception {
+        camelContext.getRouteController().stopRoute("access-token-fetch");
         AdviceWithRouteBuilder.adviceWith(camelContext, "access-token-fetch", a ->
             a.interceptSendToEndpoint("https://*")
                 .skipSendToOriginalEndpoint()
                 .to("mock:auth-https-sink")
         );
+        camelContext.getRouteController().startRoute("access-token-fetch");
 
         MockEndpoint mockSink = camelContext.getEndpoint("mock:auth-https-sink", MockEndpoint.class);
         mockSink.expectedMessageCount(1);

@@ -4,13 +4,18 @@ import org.apache.camel.test.spring.junit5.CamelSpringBootTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * Tests for the AirtelMoneyConnectorApplication class.
  */
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @CamelSpringBootTest
 @EnableAutoConfiguration
+@TestPropertySource(properties = {
+    "camel.server-port=0",
+    "camel.springboot.main-run-controller=false"
+})
 public class AirtelMoneyConnectorApplicationTests {
 
     @Test

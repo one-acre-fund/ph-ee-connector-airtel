@@ -67,6 +67,9 @@ public class ZeebeWorkers {
     @Value("${transaction-id-prefix}")
     private String transactionIdPrefix;
 
+    @Value("${zeebe.client.ttl:30000}")
+    private int zeebeMessageTimeToLive;
+
     /**
      * Creates an instance of {@link ZeebeWorkers} with all required params.
      *
@@ -167,7 +170,7 @@ public class ZeebeWorkers {
                     zeebeClient.newPublishMessageCommand()
                         .messageName(TRANSFER_MESSAGE)
                         .correlationKey(transactionId)
-                        .timeToLive(Duration.ofMillis(300))
+                        .timeToLive(Duration.ofMillis(zeebeMessageTimeToLive))
                         .variables(variables)
                         .send()
                         .join();

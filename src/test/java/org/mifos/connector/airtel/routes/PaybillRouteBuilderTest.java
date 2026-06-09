@@ -1,26 +1,20 @@
 package org.mifos.connector.airtel.routes;
 
+import static org.apache.camel.Exchange.HTTP_RESPONSE_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CONFIRMATION_REQUEST_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 
 import java.math.BigDecimal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
-import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
-import org.apache.camel.test.spring.junit5.CamelSpringBootTest;
-import org.apache.camel.test.spring.junit5.UseAdviceWith;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mifos.connector.airtel.AirtelMoneyConnectorApplicationTests;
+import org.mifos.connector.airtel.CamelRouteTestSupport;
 import org.mifos.connector.airtel.dto.AirtelConfirmationRequest;
-import org.mifos.connector.common.mojaloop.type.TransferState;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 /**
  * Tests for the paybill-transaction-status-check-base route in
@@ -28,16 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * verifying that PLATFORM_TENANT_ID is set via
  * {@code airtelUtils.getCountryFromCurrency()} (line 192).
  */
-@CamelSpringBootTest
-@SpringBootTest
-@UseAdviceWith
-class PaybillRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
-
-    @Autowired
-    private CamelContext camelContext;
-
-    @Autowired
-    private ProducerTemplate producerTemplate;
+class PaybillRouteBuilderTest extends CamelRouteTestSupport {
 
     private static final String ROUTE_ID = "paybill-transaction-status-check-base";
 
@@ -66,19 +51,18 @@ class PaybillRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
     @Test
     void testPlatformTenantIdSetFromCurrency() throws Exception {
         // Replace the toD HTTP call with a mock endpoint that returns a valid JSON body
+        camelContext.getRouteController().stopRoute(ROUTE_ID);
         AdviceWithRouteBuilder.adviceWith(camelContext, ROUTE_ID, a -> {
             a.weaveByType(org.apache.camel.model.ToDynamicDefinition.class)
                     .replace()
                     .process(exchange -> {
                         String txnId = exchange.getIn().getHeader("transactionId", String.class);
+                        exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 200);
                         exchange.getIn().setBody(dummyTransferStatusResponse(txnId));
                     })
                     .to("mock:channel-transfer");
         });
-
-        if (!camelContext.isStarted()) {
-            camelContext.start();
-        }
+        camelContext.getRouteController().startRoute(ROUTE_ID);
 
         MockEndpoint mockEndpoint = camelContext.getEndpoint("mock:channel-transfer",
                 MockEndpoint.class);
@@ -88,7 +72,7 @@ class PaybillRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
 
         Exchange zmwExchange = camelContext.getEndpoint("direct:" + ROUTE_ID).createExchange();
         zmwExchange.setProperty(CONFIRMATION_REQUEST_BODY, buildConfirmationRequest("ZMW"));
-        zmwExchange.getIn().setHeader("transactionId", "txn-100");
+        zmwExchange.setProperty(TRANSACTION_ID, "txn-100");
 
         producerTemplate.send("direct:" + ROUTE_ID, zmwExchange);
 
@@ -103,7 +87,7 @@ class PaybillRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
 
         Exchange rwfExchange = camelContext.getEndpoint("direct:" + ROUTE_ID).createExchange();
         rwfExchange.setProperty(CONFIRMATION_REQUEST_BODY, buildConfirmationRequest("RWF"));
-        rwfExchange.getIn().setHeader("transactionId", "txn-200");
+        rwfExchange.setProperty(TRANSACTION_ID, "txn-200");
 
         producerTemplate.send("direct:" + ROUTE_ID, rwfExchange);
 

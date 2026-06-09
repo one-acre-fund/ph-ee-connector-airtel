@@ -23,7 +23,7 @@ on:
 
 env:
   SHOULD_PUBLISH: ${{ (github.ref  == 'refs/heads/main' ||  github.ref == 'refs/heads/develop' || startsWith(github.ref , 'refs/heads/release') || startsWith(github.ref, 'refs/heads/hotfix')) && github.event_name != 'schedule' }}
-  REGISTRY_PROVIDER: ${{ vars.REGISTRY_PROVIDER != '' && vars.REGISTRY_PROVIDER || 'ecr' }}
+  REGISTRY_PROVIDER: ${{ vars.REGISTRY_PROVIDER != '' && vars.REGISTRY_PROVIDER || 'acr' }}
   IMAGE_REPOSITORY: oneacrefund/airtel-connector
 
 jobs:

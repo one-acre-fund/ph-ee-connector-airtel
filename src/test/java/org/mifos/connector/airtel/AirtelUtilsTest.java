@@ -28,6 +28,7 @@ public class AirtelUtilsTest {
     void setUp() {
         CountryProps countryProps = new CountryProps();
         countryProps.setCurrency(Map.of("ZMW", "zambia", "MWK", "malawi"));
+        countryProps.setDefaultTenant("rwanda");
         airtelUtils = new AirtelUtils(countryProps);
     }
 
@@ -48,7 +49,7 @@ public class AirtelUtilsTest {
     void test_getCountryFromExchange_with_property_set() {
         Exchange exchange = new DefaultExchange(new DefaultCamelContext());
         exchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
-        String result = AirtelUtils.getCountryFromExchange(exchange);
+        String result = airtelUtils.getCountryFromExchange(exchange);
         assertEquals("rwanda", result);
     }
 
@@ -56,7 +57,7 @@ public class AirtelUtilsTest {
     @Test
     void test_getCountryFromExchange_with_property_missing() {
         Exchange exchange = new DefaultExchange(new DefaultCamelContext());
-        String result = AirtelUtils.getCountryFromExchange(exchange);
+        String result = airtelUtils.getCountryFromExchange(exchange);
         assertEquals("rwanda", result);
     }
 

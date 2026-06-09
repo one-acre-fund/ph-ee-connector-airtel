@@ -45,6 +45,7 @@ airtel:
 countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE", "mwk": "MW", "zmw": "ZM", "zmk": "ZM"}'
 
 country:
+  default-tenant: malawi
   currency:
     ZMW: zambia
     RWF: rwanda

@@ -3,12 +3,11 @@ package org.mifos.connector.airtel.auth;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mifos.connector.airtel.AirtelMoneyConnectorApplicationTests;
 import org.mifos.connector.airtel.store.AccessTokenStore;
 
 import java.time.LocalDateTime;
 
-class AccessTokenStoreTest extends AirtelMoneyConnectorApplicationTests {
+class AccessTokenStoreTest {
 
     private static final String COUNTRY = "UG";
 

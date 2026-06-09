@@ -45,7 +45,7 @@ public class CollectionResponseProcessor implements Processor {
     private static final Logger logger = LoggerFactory.getLogger(CollectionResponseProcessor.class);
     private final ZeebeClient zeebeClient;
     private final ObjectMapper objectMapper;
-    @Value("${zeebe.client.ttl}")
+    @Value("${zeebe.client.ttl:30000}")
     private int timeToLive;
 
     public CollectionResponseProcessor(ZeebeClient zeebeClient, ObjectMapper objectMapper) {

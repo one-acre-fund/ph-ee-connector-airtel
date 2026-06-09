@@ -7,7 +7,6 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION
 import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_RETRY_EXCEEDED;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_TRANSACTION_PENDING;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.LAST_RESPONSE_BODY;
-import static org.mifos.connector.airtel.util.AirtelUtils.getCountryFromExchange;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AIRTEL_MONEY_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CALLBACK;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CALLBACK_RECEIVED;
@@ -28,6 +27,7 @@ import org.mifos.connector.airtel.dto.CallbackDto;
 import org.mifos.connector.airtel.dto.CollectionRequestDto;
 import org.mifos.connector.airtel.dto.CollectionResponseDto;
 import org.mifos.connector.airtel.store.AccessTokenStore;
+import org.mifos.connector.airtel.util.AirtelUtils;
 import org.mifos.connector.airtel.util.ConnectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +43,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
     private final AccessTokenStore accessTokenStore;
     private final AirtelProps airtelProps;
     private final CollectionResponseProcessor collectionResponseProcessor;
+    private final AirtelUtils airtelUtils;
     @Value("${transaction-id-prefix}")
     private String transactionIdPrefix;
 
@@ -54,10 +55,12 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
      * @param collectionResponseProcessor {@link CollectionResponseProcessor}
      */
     public AirtelMoneyRouteBuilder(AccessTokenStore accessTokenStore, AirtelProps airtelProps,
-                                   CollectionResponseProcessor collectionResponseProcessor) {
+                                   CollectionResponseProcessor collectionResponseProcessor,
+                                   AirtelUtils airtelUtils) {
         this.accessTokenStore = accessTokenStore;
         this.airtelProps = airtelProps;
         this.collectionResponseProcessor = collectionResponseProcessor;
+        this.airtelUtils = airtelUtils;
     }
 
     @Override
@@ -78,7 +81,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .choice()
                 .when(exchangeProperty(ERROR_INFORMATION).isNull())
                     .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
-                        accessTokenStore.getAccessToken(getCountryFromExchange(exchange)).getToken()))
+                        accessTokenStore.getAccessToken(airtelUtils.getCountryFromExchange(exchange)).getToken()))
                     .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
                     .to("direct:collection-request")
                     .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")
@@ -108,7 +111,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             })
             .marshal().json(JsonLibrary.Jackson)
             .process(exchange -> exchange.setProperty("baseUrl",
-                airtelProps.getCredentials(getCountryFromExchange(exchange)).getBaseUrl()))
+                airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange)).getBaseUrl()))
             .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getCollectionEndpoint()
                 + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
                 + ConnectionUtils.getConnectionTimeoutDsl(airtelProps.getTimeout()))
@@ -154,7 +157,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
                 .choice()
                 .when(exchangeProperty(ERROR_INFORMATION).isNull())
                 .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
-                        accessTokenStore.getAccessToken(getCountryFromExchange(exchange)).getToken()))
+                        accessTokenStore.getAccessToken(airtelUtils.getCountryFromExchange(exchange)).getToken()))
                 .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
                 .to("direct:airtel-transaction-status")
                 .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")
@@ -191,7 +194,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .setHeader("X-Currency", simple("${exchangeProperty.currency}"))
             .setHeader("Authorization", simple("Bearer ${exchangeProperty." + ACCESS_TOKEN + "}"))
             .process(exchange -> exchange.setProperty("baseUrl",
-                airtelProps.getCredentials(getCountryFromExchange(exchange)).getBaseUrl()))
+                airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange)).getBaseUrl()))
             .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getStatusEndpoint()
                 + "/${exchangeProperty." + COLLECTION_TRANSACTION_ID + "}"
                 + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"

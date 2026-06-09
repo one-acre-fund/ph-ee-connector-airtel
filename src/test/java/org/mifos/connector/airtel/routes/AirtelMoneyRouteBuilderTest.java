@@ -15,33 +15,18 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED
 
 import java.math.BigDecimal;
 
-import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
-import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
 import org.apache.camel.model.ModelCamelContext;
 import org.apache.camel.model.RouteDefinition;
-import org.apache.camel.test.spring.junit5.CamelSpringBootTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mifos.connector.airtel.AirtelMoneyConnectorApplicationTests;
+import org.mifos.connector.airtel.CamelRouteTestSupport;
 import org.mifos.connector.airtel.dto.CollectionRequestDto;
 import org.mifos.connector.airtel.store.AccessTokenStore;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.apache.camel.test.spring.junit5.UseAdviceWith;
-
-@CamelSpringBootTest
-@SpringBootTest
-@UseAdviceWith
-class AirtelMoneyRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
-
-    @Autowired
-    private CamelContext camelContext;
-
-    @Autowired
-    private ProducerTemplate producerTemplate;
+class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
 
     @Autowired
     private AccessTokenStore accessTokenStore;
@@ -76,21 +61,16 @@ class AirtelMoneyRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
     void testCollectionRequestBaseRouteBranches() throws Exception {
 
         // Use the static utility that accepts CamelContext/routeId and a builder lambda
-        AdviceWithRouteBuilder.adviceWith(
-                camelContext, // you can also pass camelContext.adapt(ModelCamelContext.class)
-                "collection-request-base",
-                a -> {
-                    a.weaveByToUri("direct:get-access-token").replace().process(exchange -> {
-                        // no-op, leaving ERROR_INFORMATION as is
-                    });
-                    a.weaveByToUri("direct:collection-request").replace().to("mock:collection-request");
-                    a.weaveByToUri("direct:collection-response-handler").replace().to("mock:collection-response-handler");
-                }
-        );
-
-        if (!camelContext.isStarted()) {
-            camelContext.start();
-        }
+        camelContext.getRouteController().stopRoute("collection-request-base");
+        AdviceWithRouteBuilder.adviceWith(camelContext, "collection-request-base", a -> {
+            a.weaveByToUri("direct:get-access-token").replace().process(exchange -> {
+                // no-op, leaving ERROR_INFORMATION as is
+            });
+            a.weaveByToUri("direct:collection-request").replace().to("mock:collection-request");
+            a.weaveByToUri("direct:collection-response-handler")
+                .replace().to("mock:collection-response-handler");
+        });
+        camelContext.getRouteController().startRoute("collection-request-base");
 
         accessTokenStore.setAccessToken("rwanda", "valid-token", 3600);
 
@@ -130,21 +110,16 @@ class AirtelMoneyRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
     @Test
     void testGetTransactionStatusBaseRouteBranches() throws Exception {
 
-        AdviceWithRouteBuilder.adviceWith(
-                camelContext, // or camelContext.adapt(ModelCamelContext.class)
-                "get-transaction-status-base",
-                a -> {
-                    a.weaveByToUri("direct:get-access-token").replace().process(exchange -> {
-                        // no-op
-                    });
-                    a.weaveByToUri("direct:airtel-transaction-status").replace().to("mock:airtel-transaction-status");
-                    a.weaveByToUri("direct:transaction-status-response-handler").replace().to("mock:transaction-status-response-handler");
-                }
-        );
-
-        if (!camelContext.isStarted()) {
-            camelContext.start();
-        }
+        camelContext.getRouteController().stopRoute("get-transaction-status-base");
+        AdviceWithRouteBuilder.adviceWith(camelContext, "get-transaction-status-base", a -> {
+            a.weaveByToUri("direct:get-access-token").replace().process(exchange -> {
+                // no-op
+            });
+            a.weaveByToUri("direct:airtel-transaction-status").replace().to("mock:airtel-transaction-status");
+            a.weaveByToUri("direct:transaction-status-response-handler")
+                .replace().to("mock:transaction-status-response-handler");
+        });
+        camelContext.getRouteController().startRoute("get-transaction-status-base");
 
         accessTokenStore.setAccessToken("rwanda", "valid-token-2", 3600);
 
@@ -178,22 +153,21 @@ class AirtelMoneyRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
         mockStatusHandler.assertIsSatisfied();
         assertNull(failureExchange.getProperty(ACCESS_TOKEN), "Access token must not be set when ERROR_INFORMATION is present");
         assertTrue((Boolean) failureExchange.getProperty(TRANSACTION_FAILED), "Transaction failed should be true on failure status path");
-        assertTrue((Boolean) failureExchange.getProperty(IS_RETRY_EXCEEDED), "Retry exceeded should be true on failure status path");
+        assertNull(failureExchange.getProperty(IS_RETRY_EXCEEDED),
+            "Retry exceeded should not be set when access token acquisition fails");
     }
 
     @DisplayName("Test collection-request route resolves baseUrl from PLATFORM_TENANT_ID via getCountryFromExchange")
     @Test
     void testCollectionRequestResolvesCountryBaseUrl() throws Exception {
         RouteDefinition route = findRouteByInputUri("direct:collection-request");
+        camelContext.getRouteController().stopRoute(route.getId());
         AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
             a.interceptSendToEndpoint("https://*")
                 .skipSendToOriginalEndpoint()
                 .to("mock:collection-https-sink")
         );
-
-        if (!camelContext.isStarted()) {
-            camelContext.start();
-        }
+        camelContext.getRouteController().startRoute(route.getId());
 
         MockEndpoint mockSink = camelContext.getEndpoint("mock:collection-https-sink", MockEndpoint.class);
         mockSink.expectedMessageCount(1);
@@ -211,15 +185,13 @@ class AirtelMoneyRouteBuilderTest extends AirtelMoneyConnectorApplicationTests {
     @Test
     void testTransactionStatusResolvesCountryBaseUrl() throws Exception {
         RouteDefinition route = findRouteByInputUri("direct:airtel-transaction-status");
+        camelContext.getRouteController().stopRoute(route.getId());
         AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
             a.interceptSendToEndpoint("https://*")
                 .skipSendToOriginalEndpoint()
                 .to("mock:status-https-sink")
         );
-
-        if (!camelContext.isStarted()) {
-            camelContext.start();
-        }
+        camelContext.getRouteController().startRoute(route.getId());
 
         MockEndpoint mockSink = camelContext.getEndpoint("mock:status-https-sink", MockEndpoint.class);
         mockSink.expectedMessageCount(1);
