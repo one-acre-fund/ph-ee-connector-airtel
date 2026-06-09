@@ -5,12 +5,13 @@ import static org.apache.camel.Exchange.HTTP_RESPONSE_CODE;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.camel.Exchange;
-import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteConfigurationBuilder;
 import org.apache.camel.component.bean.validator.BeanValidationException;
 import org.mifos.connector.airtel.dto.ErrorResponse;
 import org.mifos.connector.airtel.exception.TransactionAlreadyExistsException;
 import org.mifos.connector.airtel.exception.WorkflowNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,6 +19,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ExceptionHandler extends RouteConfigurationBuilder {
+
+    private static final Logger logger = LoggerFactory.getLogger(ExceptionHandler.class);
+
     @Override
     public void configuration() {
         routeConfiguration()
@@ -26,6 +30,7 @@ public class ExceptionHandler extends RouteConfigurationBuilder {
             .process(exchange -> {
                 BeanValidationException exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT,
                     BeanValidationException.class);
+                logger.error("Request body validation failed", exception);
                 Map<String, String> errors = new HashMap<>();
                 exception.getConstraintViolations().forEach(violation -> {
                     errors.put(violation.getPropertyPath().toString(), violation.getMessage());
@@ -43,6 +48,7 @@ public class ExceptionHandler extends RouteConfigurationBuilder {
             .process(exchange -> {
                 WorkflowNotFoundException exception = exchange
                     .getProperty(Exchange.EXCEPTION_CAUGHT, WorkflowNotFoundException.class);
+                logger.error("Workflow instance not found", exception);
                 exchange.getIn().setBody(new ErrorResponse(exception.getMessage(), null));
                 exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 404);
             })
@@ -55,6 +61,7 @@ public class ExceptionHandler extends RouteConfigurationBuilder {
                 TransactionAlreadyExistsException exception = exchange
                     .getProperty(Exchange.EXCEPTION_CAUGHT,
                         TransactionAlreadyExistsException.class);
+                logger.error("Transaction already exists", exception);
                 exchange.getIn().setBody(new ErrorResponse(exception.getMessage(), null));
                 exchange.getIn().setHeader(HTTP_RESPONSE_CODE, 409);
             })
@@ -63,8 +70,10 @@ public class ExceptionHandler extends RouteConfigurationBuilder {
         routeConfiguration()
             .onException(Exception.class)
             .handled(true)
-            .log(LoggingLevel.ERROR, "Caught exception: ${exception.stacktrace}")
             .process(exchange -> {
+                Exception exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT,
+                    Exception.class);
+                logger.error("Caught exception while processing request", exception);
                 ErrorResponse response = new ErrorResponse(
                     "An error occurred while processing the request", null);
                 exchange.getIn().setBody(response);

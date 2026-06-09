@@ -20,7 +20,8 @@ public class AccessTokenStore {
     }
 
     public LocalDateTime getExpiresOn(String country) {
-        return getAccessToken(country).getExpiresOn();
+        TokenEntry entry = getAccessToken(country);
+        return entry != null ? entry.getExpiresOn() : null;
     }
 
     /**

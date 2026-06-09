@@ -1,5 +1,10 @@
 # Release Notes
 
+
+## Version 1.1.5.6
+        * [TTSD-103620] - Debug Airtel transactions staying in progress 
+
+
 ## Version 1.1.5.5
 
         * [FD-1804] - Fix Airtel Transactions Stuck in Retry Loop

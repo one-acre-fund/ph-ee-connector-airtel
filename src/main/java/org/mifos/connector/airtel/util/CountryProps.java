@@ -15,6 +15,7 @@ import java.util.Map;
 public class CountryProps {
 
     private Map<String, String> currency;
+    private String defaultTenant = "malawi";
 
     public Map<String, String> getCurrency() {
         return currency;
@@ -22,5 +23,13 @@ public class CountryProps {
 
     public void setCurrency(Map<String, String> currency) {
         this.currency = currency;
+    }
+
+    public String getDefaultTenant() {
+        return defaultTenant;
+    }
+
+    public void setDefaultTenant(String defaultTenant) {
+        this.defaultTenant = defaultTenant;
     }
 }

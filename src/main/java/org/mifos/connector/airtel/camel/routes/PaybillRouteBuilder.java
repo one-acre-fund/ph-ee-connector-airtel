@@ -26,6 +26,9 @@ import io.camunda.zeebe.client.ZeebeClient;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
+import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
 import org.mifos.connector.airtel.dto.AirtelConfirmationRequest;
 import org.mifos.connector.airtel.dto.AirtelConfirmationResponse;
@@ -60,6 +63,7 @@ public class PaybillRouteBuilder extends RouteBuilder {
     private final PaybillProps paybillProps;
     private final String channelUrl;
     private final AirtelUtils airtelUtils;
+    private final int zeebeMessageTimeToLive;
 
     /**
      * Creates a new {@link PaybillRouteBuilder} object.
@@ -69,11 +73,13 @@ public class PaybillRouteBuilder extends RouteBuilder {
      * @param channelUrl   the URL to be used in communicating with the channel connector
      */
     public PaybillRouteBuilder(ZeebeClient zeebeClient, PaybillProps paybillProps,
-                               @Value("${channel.host}") String channelUrl, AirtelUtils airtelUtils) {
+                               @Value("${channel.host}") String channelUrl, AirtelUtils airtelUtils,
+                               @Value("${zeebe.client.ttl:30000}") int zeebeMessageTimeToLive) {
         this.zeebeClient = zeebeClient;
         this.paybillProps = paybillProps;
         this.channelUrl = channelUrl;
         this.airtelUtils = airtelUtils;
+        this.zeebeMessageTimeToLive = zeebeMessageTimeToLive;
     }
 
     @Override
@@ -118,11 +124,13 @@ public class PaybillRouteBuilder extends RouteBuilder {
                 exchange.setProperty(CORRELATION_ID, workflowTransactionId);
             })
             .setProperty(TRANSACTION_ID, simple("${body.transactionId}"))
-            .to("direct:paybill-transaction-status-check-base")
+            .to("direct:paybill-transaction-status-check-for-confirmation")
             .process(exchange -> {
-                // Ensure the transaction doesn't already exist
-                TransactionStatusResponseDTO transactionStatusResponse = exchange.getIn()
-                    .getBody(TransactionStatusResponseDTO.class);
+                TransactionStatusResponseDTO transactionStatusResponse = null;
+                Object statusResponse = exchange.getIn().getBody();
+                if (statusResponse instanceof TransactionStatusResponseDTO) {
+                    transactionStatusResponse = (TransactionStatusResponseDTO) statusResponse;
+                }
                 if (transactionStatusResponse != null && TransferState.COMMITTED
                     .equals(transactionStatusResponse.getTransferState())) {
                     throw new TransactionAlreadyExistsException("Transaction already exists");
@@ -148,7 +156,7 @@ public class PaybillRouteBuilder extends RouteBuilder {
                 zeebeClient.newPublishMessageCommand()
                     .messageName("pendingAirtelConfirmation")
                     .correlationKey(workflowTransactionId)
-                    .timeToLive(Duration.ofMillis(300))
+                    .timeToLive(Duration.ofMillis(zeebeMessageTimeToLive))
                     .variables(variables)
                     .send();
             })
@@ -183,20 +191,62 @@ public class PaybillRouteBuilder extends RouteBuilder {
             .end()
             .marshal().json();
 
+        from("direct:paybill-transaction-status-check-for-confirmation")
+            .id("paybill-transaction-status-check-for-confirmation")
+            .onException(Exception.class)
+                .handled(true)
+                .process(exchange -> {
+                    Exception exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT,
+                        Exception.class);
+                    String transactionId = exchange.getProperty(TRANSACTION_ID, String.class);
+                    logger.error("Error while checking paybill transaction status for "
+                            + "transaction id {}. Continuing confirmation flow.", transactionId,
+                        exception);
+                    exchange.getIn().setBody(null);
+                    exchange.getIn().removeHeader(HTTP_RESPONSE_CODE);
+                })
+            .end()
+            .to("direct:paybill-transaction-status-check-base");
+
         from("direct:paybill-transaction-status-check-base")
             .id("paybill-transaction-status-check-base")
             .process(exchange -> {
-                exchange.getIn().removeHeaders("*");
                 AirtelConfirmationRequest request = exchange.getProperty(CONFIRMATION_REQUEST_BODY,
                         AirtelConfirmationRequest.class);
-                exchange.getIn().setHeader(PLATFORM_TENANT_ID, airtelUtils.getCountryFromCurrency(request.currency()));
+                String tenantId = request != null
+                    ? airtelUtils.getCountryFromCurrency(request.currency())
+                    : Optional.ofNullable(exchange.getIn().getHeader(PLATFORM_TENANT_ID, String.class))
+                        .orElse(airtelUtils.getDefaultTenant());
+                String lookupTransactionId = Optional
+                    .ofNullable(exchange.getProperty(CORRELATION_ID, String.class))
+                    .orElse(exchange.getProperty(TRANSACTION_ID, String.class));
+                exchange.getIn().removeHeaders("*");
+                exchange.getIn().setHeader(PLATFORM_TENANT_ID, tenantId);
+                exchange.getIn().setHeader(TRANSACTION_ID, lookupTransactionId);
                 exchange.getIn().setBody(null);
                 exchange.getIn().setHeader("requestType", "transfers");
             })
             .toD(channelUrl + "/channel/transfer/${header.transactionId}"
                 + BRIDGE_ENDPOINT_QUERY_PARAM)
-            .log("Received status response for transaction ${header.transactionId}: ${body}")
-            .unmarshal().json(TransactionStatusResponseDTO.class);
+            .filter(header(HTTP_RESPONSE_CODE).isEqualTo(200))
+                .log("Received status response for transaction ${header.transactionId}: ${body}")
+                .unmarshal().json(TransactionStatusResponseDTO.class)
+            .end()
+            .process(exchange -> {
+                if (exchange.getIn().getBody() instanceof TransactionStatusResponseDTO) {
+                    return;
+                }
+                String transactionId = exchange.getIn().getHeader(TRANSACTION_ID, String.class);
+                Object body = exchange.getIn().getBody();
+                String bodyPreview = body != null ? body.toString() : "null";
+                if (bodyPreview.length() > 200) {
+                    bodyPreview = bodyPreview.substring(0, 200) + "...";
+                }
+                logger.warn("Channel transfer status check failed for transaction {}: "
+                        + "HTTP {}, body: {}", transactionId,
+                    exchange.getIn().getHeader(HTTP_RESPONSE_CODE), bodyPreview);
+                exchange.getIn().setBody(null);
+            });
 
         from("direct:account-status")
             .id("account-status")

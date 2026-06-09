@@ -2,7 +2,6 @@ package org.mifos.connector.airtel.util;
 
 import static org.mifos.connector.airtel.camel.config.CamelProperties.SECONDARY_IDENTIFIER_NAME;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
-import static org.mifos.connector.airtel.camel.config.CamelProperties.DEFAULT_TENANT;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AIRTEL_CONSTANT;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AMS;
@@ -120,8 +119,18 @@ public class AirtelUtils {
      *            the Camel exchange
      * @return the country code or the default tenant if not found
      */
-    public static String getCountryFromExchange(Exchange exchange) {
-        return Optional.ofNullable(exchange.getProperty(PLATFORM_TENANT_ID, String.class)).orElse(DEFAULT_TENANT);
+    public String getCountryFromExchange(Exchange exchange) {
+        return Optional.ofNullable(exchange.getProperty(PLATFORM_TENANT_ID, String.class))
+            .orElse(getDefaultTenant());
+    }
+
+    /**
+     * Returns the configured default platform tenant when currency or header is unavailable.
+     *
+     * @return the default tenant id
+     */
+    public String getDefaultTenant() {
+        return countryProps.getDefaultTenant();
     }
 
     /**
@@ -132,7 +141,7 @@ public class AirtelUtils {
      * @return the country
      */
     public String getCountryFromCurrency(String currency) {
-        return countryProps.getCurrency().getOrDefault(currency, "rwanda");
+        return countryProps.getCurrency().getOrDefault(currency, getDefaultTenant());
     }
 
 }

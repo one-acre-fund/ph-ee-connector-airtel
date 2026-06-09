@@ -1,6 +1,5 @@
 package org.mifos.connector.airtel.camel.routes;
 
-import static org.mifos.connector.airtel.util.AirtelUtils.getCountryFromExchange;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 
 import java.time.LocalDateTime;
@@ -11,6 +10,7 @@ import org.apache.camel.model.dataformat.JsonLibrary;
 import org.mifos.connector.airtel.dto.AirtelProps;
 import org.mifos.connector.airtel.dto.AuthResponseDto;
 import org.mifos.connector.airtel.store.AccessTokenStore;
+import org.mifos.connector.airtel.util.AirtelUtils;
 import org.mifos.connector.airtel.util.ConnectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,10 +24,13 @@ public class AuthRouteBuilder extends RouteBuilder {
     private static final Logger logger = LoggerFactory.getLogger(AuthRouteBuilder.class);
     private final AccessTokenStore accessTokenStore;
     private final AirtelProps airtelProps;
+    private final AirtelUtils airtelUtils;
 
-    public AuthRouteBuilder(AccessTokenStore accessTokenStore, AirtelProps airtelProps) {
+    public AuthRouteBuilder(AccessTokenStore accessTokenStore, AirtelProps airtelProps,
+                            AirtelUtils airtelUtils) {
         this.accessTokenStore = accessTokenStore;
         this.airtelProps = airtelProps;
+        this.airtelUtils = airtelUtils;
     }
 
     @Override
@@ -39,7 +42,8 @@ public class AuthRouteBuilder extends RouteBuilder {
         from("direct:get-access-token")
             .id("get-access-token")
             .choice()
-            .when(exchange -> accessTokenStore.isValid(getCountryFromExchange(exchange), LocalDateTime.now()))
+            .when(exchange -> accessTokenStore.isValid(
+                airtelUtils.getCountryFromExchange(exchange), LocalDateTime.now()))
             .log("Access token valid. Continuing.")
             .otherwise()
             .log("Access token expired or not present")
@@ -62,7 +66,7 @@ public class AuthRouteBuilder extends RouteBuilder {
             .setHeader(Exchange.HTTP_METHOD, constant("POST"))
             .setHeader("Content-Type", constant("application/json"))
             .process(exchange -> {
-                String country = getCountryFromExchange(exchange);
+                String country = airtelUtils.getCountryFromExchange(exchange);
                 AirtelProps.Credentials credentials = airtelProps.getCredentials(country);
                 exchange.setProperty("baseUrl", credentials.getBaseUrl());
                 exchange.getIn().setBody(credentials);
@@ -80,7 +84,7 @@ public class AuthRouteBuilder extends RouteBuilder {
             .unmarshal().json(AuthResponseDto.class)
             .process(exchange -> {
                 AuthResponseDto response = exchange.getIn().getBody(AuthResponseDto.class);
-                accessTokenStore.setAccessToken(getCountryFromExchange(exchange),
+                accessTokenStore.setAccessToken(airtelUtils.getCountryFromExchange(exchange),
                         response.accessToken(), response.expiresIn());
                 logger.info("Saved Access Token");
             });
