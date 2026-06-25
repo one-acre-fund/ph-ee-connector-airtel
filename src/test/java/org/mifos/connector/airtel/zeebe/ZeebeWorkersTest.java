@@ -3,9 +3,12 @@ package org.mifos.connector.airtel.zeebe;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CHANNEL_REQUEST;
-import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INIT_TRANSFER_WORKER_NAME;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.GET_TRANSACTION_STATUS_WORKER_NAME;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INIT_TRANSFER_WORKER_NAME;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_CREATE_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
+import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -37,6 +40,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mifos.connector.airtel.util.AirtelUtils;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Tests for {@link ZeebeWorkers} verifying that PLATFORM_TENANT_ID is set
@@ -100,6 +105,7 @@ class ZeebeWorkersTest {
         var allHandlers = handlerCaptor.getAllValues();
         capturedHandlers.put(INIT_TRANSFER_WORKER_NAME, allHandlers.get(0));
         capturedHandlers.put(GET_TRANSACTION_STATUS_WORKER_NAME, allHandlers.get(1));
+        capturedHandlers.put("delete-airtel-workflow-instancekey", allHandlers.get(2));
     }
 
     @DisplayName("init-transfer worker sets PLATFORM_TENANT_ID from airtelUtils.getCountryFromCurrency (line 117)")
@@ -159,6 +165,24 @@ class ZeebeWorkersTest {
         assertEquals("zambia", sentExchange.getProperty(PLATFORM_TENANT_ID));
     }
 
+    @DisplayName("cleanup worker removes workflow mapping and marks transferCreateFailed")
+    @Test
+    void cleanupWorker_marksTransferCreateFailed() throws Exception {
+        workflowInstanceStore.put("airtel-txn-1", "channel-txn-1");
+
+        ActivatedJob job = mockActivatedJob(Map.of(
+            CLIENT_CORRELATION_ID, "airtel-txn-1"
+        ));
+
+        ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+        JobClient jobClient = mockJobClientWithVariableCapture(variablesCaptor);
+
+        capturedHandlers.get("delete-airtel-workflow-instancekey").handle(jobClient, job);
+
+        assertFalse(workflowInstanceStore.containsKey("airtel-txn-1"));
+        assertEquals(true, variablesCaptor.getValue().get(TRANSFER_CREATE_FAILED));
+    }
+
     // ----- helpers -------------------------------------------------------
 
     @SuppressWarnings("unchecked")
@@ -174,12 +198,21 @@ class ZeebeWorkersTest {
 
     @SuppressWarnings("unchecked")
     private JobClient mockJobClient() {
+        return mockJobClientWithVariableCapture(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private JobClient mockJobClientWithVariableCapture(ArgumentCaptor<Map<String, Object>> variablesCaptor) {
         JobClient jobClient = mock(JobClient.class);
         CompleteJobCommandStep1 completeStep = mock(CompleteJobCommandStep1.class);
         ZeebeFuture<CompleteJobResponse> future = mock(ZeebeFuture.class);
 
         when(jobClient.newCompleteCommand(any(Long.class))).thenReturn(completeStep);
-        when(completeStep.variables(any(Map.class))).thenReturn(completeStep);
+        if (variablesCaptor != null) {
+            when(completeStep.variables(variablesCaptor.capture())).thenReturn(completeStep);
+        } else {
+            when(completeStep.variables(any(Map.class))).thenReturn(completeStep);
+        }
         when(completeStep.send()).thenReturn(future);
         when(future.join()).thenReturn(null);
         return jobClient;
