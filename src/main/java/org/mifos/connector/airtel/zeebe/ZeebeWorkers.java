@@ -26,6 +26,7 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ZEEBE_ELEMENT_INST
 
 import io.camunda.zeebe.client.ZeebeClient;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.PostConstruct;
 import org.apache.camel.CamelContext;
@@ -214,7 +215,10 @@ public class ZeebeWorkers {
                 String transactionId = (String) variables.get(CLIENT_CORRELATION_ID);
                 logger.info("Removing Airtel txn id {} & instance key from store", transactionId);
                 workflowInstanceStore.remove(transactionId);
+                Map<String, Object> completionVariables = new HashMap<>();
+                completionVariables.put(TRANSFER_CREATE_FAILED, true);
                 client.newCompleteCommand(job.getKey())
+                    .variables(completionVariables)
                     .send()
                     .join();
             }))
