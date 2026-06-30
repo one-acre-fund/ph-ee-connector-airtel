@@ -3,6 +3,7 @@
 
 ## Version 1.1.5.6
         * [TTSD-103620] - Debug Airtel transactions staying in progress 
+        * [FD-1833] - FIX Airtel transactions staying in progress 
 
 
 ## Version 1.1.5.5

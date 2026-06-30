@@ -217,9 +217,7 @@ public class PaybillRouteBuilder extends RouteBuilder {
                     ? airtelUtils.getCountryFromCurrency(request.currency())
                     : Optional.ofNullable(exchange.getIn().getHeader(PLATFORM_TENANT_ID, String.class))
                         .orElse(airtelUtils.getDefaultTenant());
-                String lookupTransactionId = Optional
-                    .ofNullable(exchange.getProperty(CORRELATION_ID, String.class))
-                    .orElse(exchange.getProperty(TRANSACTION_ID, String.class));
+                String lookupTransactionId = exchange.getProperty(TRANSACTION_ID, String.class);
                 exchange.getIn().removeHeaders("*");
                 exchange.getIn().setHeader(PLATFORM_TENANT_ID, tenantId);
                 exchange.getIn().setHeader(TRANSACTION_ID, lookupTransactionId);
@@ -228,8 +226,8 @@ public class PaybillRouteBuilder extends RouteBuilder {
             })
             .toD(channelUrl + "/channel/transfer/${header.transactionId}"
                 + BRIDGE_ENDPOINT_QUERY_PARAM)
-            .filter(header(HTTP_RESPONSE_CODE).isEqualTo(200))
-                .log("Received status response for transaction ${header.transactionId}: ${body}")
+            .log("Received status response for transaction ${header.transactionId}: ${body}")
+            .filter(header(HTTP_RESPONSE_CODE).isEqualTo("200"))
                 .unmarshal().json(TransactionStatusResponseDTO.class)
             .end()
             .process(exchange -> {
