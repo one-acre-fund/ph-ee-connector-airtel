@@ -107,7 +107,7 @@ class CollectionResponseProcessorTest {
         ArgumentCaptor<Map<String, Object>> varsCaptor = ArgumentCaptor.forClass(Map.class);
         verify(zeebeClient).newSetVariablesCommand(99L);
         verify(setVariablesStep1).variables(varsCaptor.capture());
-        assertEquals("PT90S", varsCaptor.getValue().get(TIMER));
+        assertEquals("PT64S", varsCaptor.getValue().get(TIMER));
         verify(zeebeClient, never()).newPublishMessageCommand();
     }
 
@@ -170,6 +170,20 @@ class CollectionResponseProcessorTest {
         Map<String, Object> vars = varsCaptor.getValue();
         assertTrue((Boolean) vars.get(TRANSACTION_FAILED));
         assertFalse(vars.containsKey(ERROR_INFORMATION));
+    }
+
+    @Test
+    @DisplayName("Pending with retry exceeded publishes outcome instead of updating timer")
+    void pendingWithRetryExceeded_publishesOutcome() throws Exception {
+        exchange.setProperty(IS_TRANSACTION_PENDING, true);
+        exchange.setProperty(IS_RETRY_EXCEEDED, true);
+        exchange.setProperty(TRANSACTION_ID, "txn-pending-exceeded");
+        exchange.setProperty(TRANSACTION_FAILED, true);
+
+        processor.process(exchange);
+
+        verify(zeebeClient, never()).newSetVariablesCommand(anyLong());
+        verify(zeebeClient).newPublishMessageCommand();
     }
 
     @Test

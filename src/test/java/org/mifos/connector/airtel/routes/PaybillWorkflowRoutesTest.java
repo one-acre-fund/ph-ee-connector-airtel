@@ -21,7 +21,9 @@ import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.common.channel.dto.TransactionStatusResponseDTO;
 import org.mifos.connector.common.mojaloop.type.TransferState;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class PaybillWorkflowRoutesTest extends CamelRouteTestSupport {
 
     @Autowired
@@ -92,6 +94,83 @@ class PaybillWorkflowRoutesTest extends CamelRouteTestSupport {
 
         assertEquals("wf-uuid-1", paybillStateStore.getWorkflowInstance("airtel-txn-ok"));
         assertTrue(exchange.getIn().getBody(String.class).contains("Jane Doe"));
+    }
+
+    @Test
+    @DisplayName("confirmation continues when status is present but not COMMITTED")
+    void confirmation_nonCommittedStatus_continues() throws Exception {
+        paybillStateStore.putWorkflowInstance("recv-txn", "wf-recv");
+
+        camelContext.getRouteController().stopRoute("airtel-confirmation");
+        AdviceWithRouteBuilder.adviceWith(camelContext, "airtel-confirmation", a -> {
+            a.replaceFromWith("direct:airtel-confirmation-recv");
+            a.weaveByType(org.apache.camel.model.UnmarshalDefinition.class).replace()
+                    .process(ex -> { });
+            a.weaveByToUri("bean-validator:*").replace().process(ex -> { });
+            a.weaveByToUri("direct:paybill-transaction-status-check-for-confirmation")
+                    .replace()
+                    .process(ex -> {
+                        TransactionStatusResponseDTO status = new TransactionStatusResponseDTO();
+                        status.setTransferState(TransferState.RECEIVED);
+                        status.setTransactionId("recv-txn");
+                        ex.getIn().setBody(status);
+                    });
+        });
+        camelContext.getRouteController().startRoute("airtel-confirmation");
+
+        Exchange exchange = camelContext.getEndpoint("direct:airtel-confirmation-recv")
+                .createExchange();
+        exchange.getIn().setBody(new AirtelConfirmationRequest(
+                "recv-txn", BigDecimal.TEN, "ZMW", "260788000000", "ACC", "123456"));
+        producerTemplate.send("direct:airtel-confirmation-recv", exchange);
+
+        assertEquals(202, exchange.getIn().getHeader(HTTP_RESPONSE_CODE));
+    }
+
+    @Test
+    @DisplayName("paybill-validation-response-success returns 500 when workflow response is null")
+    void validationSuccess_nullWorkflowResponse_returns500() throws Exception {
+        camelContext.getRouteController().stopRoute("paybill-validation-response-success");
+        AdviceWithRouteBuilder.adviceWith(camelContext, "paybill-validation-response-success",
+                a -> {
+                    a.replaceFromWith("direct:paybill-validation-success-null");
+                    a.weaveByType(org.apache.camel.model.UnmarshalDefinition.class).replace()
+                            .process(ex -> { });
+                });
+        camelContext.getRouteController().startRoute("paybill-validation-response-success");
+
+        Exchange exchange = camelContext
+                .getEndpoint("direct:paybill-validation-success-null").createExchange();
+        exchange.setProperty(TRANSACTION_ID, "null-wf-txn");
+        exchange.setProperty(CHANNEL_VALIDATION_RESPONSE, new ChannelValidationResponse(
+                true, "roster", "oaf", "null-wf-txn", "100", "ZMW", "2607", "X", List.of(), "ok"));
+        exchange.getIn().setBody((Object) null);
+        producerTemplate.send("direct:paybill-validation-success-null", exchange);
+
+        assertEquals(500, exchange.getIn().getHeader(HTTP_RESPONSE_CODE));
+    }
+
+    @Test
+    @DisplayName("paybill-validation-response-success returns 500 when workflow id blank")
+    void validationSuccess_blankWorkflowId_returns500() throws Exception {
+        camelContext.getRouteController().stopRoute("paybill-validation-response-success");
+        AdviceWithRouteBuilder.adviceWith(camelContext, "paybill-validation-response-success",
+                a -> {
+                    a.replaceFromWith("direct:paybill-validation-success-empty");
+                    a.weaveByType(org.apache.camel.model.UnmarshalDefinition.class).replace()
+                            .process(ex -> { });
+                });
+        camelContext.getRouteController().startRoute("paybill-validation-response-success");
+
+        Exchange exchange = camelContext
+                .getEndpoint("direct:paybill-validation-success-empty").createExchange();
+        exchange.setProperty(TRANSACTION_ID, "empty-wf-txn");
+        exchange.setProperty(CHANNEL_VALIDATION_RESPONSE, new ChannelValidationResponse(
+                true, "roster", "oaf", "empty-wf-txn", "100", "ZMW", "2607", "X", List.of(), "ok"));
+        exchange.getIn().setBody(new org.mifos.connector.airtel.dto.WorkflowResponse("  "));
+        producerTemplate.send("direct:paybill-validation-success-empty", exchange);
+
+        assertEquals(500, exchange.getIn().getHeader(HTTP_RESPONSE_CODE));
     }
 
     @Test

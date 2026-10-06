@@ -49,9 +49,25 @@ class PaybillPropsTest {
         assertEquals("fineract", amsProps.getAmsName());
     }
 
-    @DisplayName("isDefaultShortCodeValid returns true when default is configured")
+    @DisplayName("getAmsProps falls back when short code is null or blank")
     @Test
-    void isDefaultShortCodeValid_returnsTrueForConfiguredDefault() {
-        assertTrue(paybillProps.isDefaultShortCodeValid());
+    void getAmsProps_fallsBackForNullOrBlank() {
+        assertEquals("default-code", paybillProps.getAmsProps(null).getBusinessShortCode());
+        assertEquals("default-code", paybillProps.getAmsProps("  ").getBusinessShortCode());
+    }
+
+    @DisplayName("PaybillProps accessors round-trip configured values")
+    @Test
+    void accessors_roundTrip() {
+        paybillProps.setAccountHoldingInstitutionId("oaf");
+        paybillProps.setTimer("PT45S");
+        PaybillProps.AmsProps ams = paybillProps.getAmsProps("default-code");
+        ams.setAmsUrl("http://ams");
+
+        assertEquals("oaf", paybillProps.getAccountHoldingInstitutionId());
+        assertEquals("PT45S", paybillProps.getTimer());
+        assertEquals("default-code", paybillProps.getDefaultShortCode());
+        assertEquals("http://ams", ams.getAmsUrl());
+        assertEquals("accountnumber", ams.getIdentifier());
     }
 }

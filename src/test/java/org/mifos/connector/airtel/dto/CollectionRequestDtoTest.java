@@ -58,4 +58,22 @@ class CollectionRequestDtoTest {
         assertEquals("txn-2", dto.getTransaction().getId());
         assertEquals("RW", dto.getTransaction().getCountry());
     }
+
+    @Test
+    @DisplayName("fromChannelRequest omits prefix when null")
+    void fromChannelRequest_nullPrefix() {
+        JSONObject channelRequest = new JSONObject("""
+                {
+                  "amount": { "currency": "ZMW", "amount": 1 },
+                  "payer": {
+                    "partyIdInfo": { "partyIdentifier": "260788123456" }
+                  }
+                }
+                """);
+
+        CollectionRequestDto dto = CollectionRequestDto.fromChannelRequest(
+                channelRequest, "txn-3", COUNTRY_CODES, null);
+
+        assertEquals("txn-3", dto.getTransaction().getId());
+    }
 }

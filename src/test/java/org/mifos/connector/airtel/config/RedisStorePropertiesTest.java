@@ -62,6 +62,7 @@ class RedisStorePropertiesTest {
         RedisStoreProperties properties = new RedisStoreProperties();
         properties.setType(type);
 
+        assertEquals(type, properties.getType());
         assertFalse(properties.isMemoryStore());
     }
 }

@@ -16,6 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+
 /**
  * Route handlers for authentication.
  */
@@ -43,7 +45,7 @@ public class AuthRouteBuilder extends RouteBuilder {
             .id("get-access-token")
             .choice()
             .when(exchange -> accessTokenStore.isValid(
-                airtelUtils.getCountryFromExchange(exchange), LocalDateTime.now()))
+                airtelUtils.getCountryFromExchange(exchange), LocalDateTime.now(ZoneId.systemDefault())))
             .log("Access token valid. Continuing.")
             .otherwise()
             .log("Access token expired or not present")

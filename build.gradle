@@ -66,6 +66,13 @@ jacocoTestReport {
 		xml.destination file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml")
 		html.destination file("${buildDir}/reports/jacoco/test/html")
 	}
+	afterEvaluate {
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+				'**/AirtelMoneyConnectorApplication.class'
+			])
+		}))
+	}
 }
 
 

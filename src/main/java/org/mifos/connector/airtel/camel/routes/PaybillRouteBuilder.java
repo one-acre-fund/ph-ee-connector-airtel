@@ -129,13 +129,9 @@ public class PaybillRouteBuilder extends RouteBuilder {
             .setProperty(TRANSACTION_ID, simple("${body.transactionId}"))
             .to("direct:paybill-transaction-status-check-for-confirmation")
             .process(exchange -> {
-                TransactionStatusResponseDTO transactionStatusResponse = null;
                 Object statusResponse = exchange.getIn().getBody();
-                if (statusResponse instanceof TransactionStatusResponseDTO) {
-                    transactionStatusResponse = (TransactionStatusResponseDTO) statusResponse;
-                }
-                if (transactionStatusResponse != null && TransferState.COMMITTED
-                    .equals(transactionStatusResponse.getTransferState())) {
+                if (statusResponse instanceof TransactionStatusResponseDTO transactionStatusResponse
+                    && TransferState.COMMITTED.equals(transactionStatusResponse.getTransferState())) {
                     throw new TransactionAlreadyExistsException("Transaction already exists");
                 }
 

@@ -23,6 +23,7 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AIRTEL_CONSTANT;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CONFIRMATION_TIMER;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INITIATOR_FSP_ID;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.PARTY_LOOKUP_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.PAYMENT_SCHEME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 
@@ -114,6 +115,18 @@ public class AirtelUtilsTest {
             .anyMatch(cd -> INITIATOR_FSP_ID.equals(cd.getKey()) && "short-code".equals(cd.getValue())));
         assertTrue(transfer.getCustomData().stream()
             .anyMatch(cd -> CONFIRMATION_TIMER.equals(cd.getKey()) && "PT45S".equals(cd.getValue())));
+    }
+
+    @DisplayName("createCustomData sets partyLookupFailed true when not reconciled")
+    @Test
+    void createCustomData_unreconciled_setsPartyLookupFailed() {
+        ChannelValidationResponse response = new ChannelValidationResponse(false, "AMS",
+                "tenant-1", "txn-1", "100", "USD", "12345",
+                "John Doe", List.of(), "failed");
+        List<CustomData> customDataList = AirtelUtils.createCustomData(response, "shortCode", "PT1H");
+        assertTrue(customDataList.stream()
+                .anyMatch(cd -> PARTY_LOOKUP_FAILED.equals(cd.getKey())
+                        && Boolean.TRUE.equals(cd.getValue())));
     }
 
     @DisplayName("getDefaultTenant returns configured default tenant")

@@ -87,6 +87,42 @@ class AccessTokenStoreTest {
                 "Expiration time should be in the future");
     }
 
+    @DisplayName("Return false when input datetime is after expiration time")
+    @Test
+    void test_invalid_token_after_expiry() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(1L);
+
+        assertFalse(accessTokenStore.isValid(COUNTRY, LocalDateTime.now().plusHours(1)));
+    }
+
+    @DisplayName("Return null expiresOn when token missing")
+    @Test
+    void getExpiresOn_returnsNullWhenMissing() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn(null);
+        assertNull(accessTokenStore.getExpiresOn(COUNTRY));
+    }
+
+    @DisplayName("Zero TTL yields expiresOn of approximately now")
+    @Test
+    void getAccessToken_zeroTtl_usesNow() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(0L);
+
+        assertNotNull(accessTokenStore.getAccessToken(COUNTRY));
+        assertTrue(accessTokenStore.getAccessToken(COUNTRY).getExpiresOn()
+                .isBefore(LocalDateTime.now().plusSeconds(2)));
+    }
+
+    @DisplayName("Null TTL yields expiresOn of approximately now")
+    @Test
+    void getAccessToken_nullTtl_usesNow() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(null);
+
+        assertNotNull(accessTokenStore.getAccessToken(COUNTRY).getToken());
+    }
+
     @DisplayName("Return false when token is missing after non-positive expiresIn")
     @Test
     void test_expired_token_after_expiry() {

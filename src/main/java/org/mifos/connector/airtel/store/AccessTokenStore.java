@@ -5,6 +5,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,8 +43,8 @@ public class AccessTokenStore {
         }
         Long ttlSeconds = redisTemplate.getExpire(key, TimeUnit.SECONDS);
         LocalDateTime expiresOn = (ttlSeconds != null && ttlSeconds > 0)
-                ? LocalDateTime.now().plusSeconds(ttlSeconds)
-                : LocalDateTime.now();
+                ? LocalDateTime.now(ZoneId.systemDefault()).plusSeconds(ttlSeconds)
+                : LocalDateTime.now(ZoneId.systemDefault());
         return new TokenEntry(token, expiresOn);
     }
 

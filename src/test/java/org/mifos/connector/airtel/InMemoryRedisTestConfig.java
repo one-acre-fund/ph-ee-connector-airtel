@@ -1,6 +1,5 @@
 package org.mifos.connector.airtel;
 
-import org.mockito.Mockito;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -16,7 +15,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 /**
  * Provides a ConcurrentHashMap-backed {@link StringRedisTemplate} for Spring tests
@@ -29,9 +30,9 @@ public class InMemoryRedisTestConfig {
     @Primary
     public StringRedisTemplate stringRedisTemplate() {
         Map<String, TimedValue> store = new ConcurrentHashMap<>();
-        StringRedisTemplate template = Mockito.mock(StringRedisTemplate.class, Mockito.withSettings().lenient());
+        StringRedisTemplate template = mock(StringRedisTemplate.class, withSettings().lenient());
         @SuppressWarnings("unchecked")
-        ValueOperations<String, String> ops = Mockito.mock(ValueOperations.class, Mockito.withSettings().lenient());
+        ValueOperations<String, String> ops = mock(ValueOperations.class, withSettings().lenient());
         when(template.opsForValue()).thenReturn(ops);
 
         doAnswer(invocation -> {

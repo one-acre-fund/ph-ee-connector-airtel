@@ -24,8 +24,10 @@ import org.mifos.connector.airtel.CamelRouteTestSupport;
 import org.mifos.connector.airtel.camel.routes.AirtelMoneyRouteBuilder;
 import org.mifos.connector.airtel.dto.CallbackDto;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class AirtelMoneyHandlersTest extends CamelRouteTestSupport {
 
     @Autowired
@@ -196,7 +198,8 @@ class AirtelMoneyHandlersTest extends CamelRouteTestSupport {
     @Test
     @DisplayName("transaction-status-response-handler handles non-200")
     void statusHandler_non200() {
-        Exchange exchange = sendStatusHandler("boom", 502);
+        // Unmarshal runs before the choice, so body must still be valid JSON
+        Exchange exchange = sendStatusHandler("{\"status\":{\"success\":false,\"message\":\"err\",\"response_code\":\"X\"}}", 502);
         assertTrue((Boolean) exchange.getProperty(TRANSACTION_FAILED));
     }
 
@@ -278,6 +281,42 @@ class AirtelMoneyHandlersTest extends CamelRouteTestSupport {
         producerTemplate.send("direct:callback-handler", exchange);
 
         assertNull(exchange.getProperty(TRANSACTION_FAILED));
+    }
+
+    @Test
+    @DisplayName("callback-handler leaves id unchanged when prefix blank")
+    void callbackHandler_blankPrefix_keepsId() {
+        ReflectionTestUtils.setField(airtelMoneyRouteBuilder, "transactionIdPrefix", "  ");
+
+        CallbackDto.Transaction txn = new CallbackDto.Transaction();
+        txn.setId("raw-id");
+        txn.setStatusCode("TIP");
+        CallbackDto callback = new CallbackDto();
+        callback.setTransaction(txn);
+
+        Exchange exchange = camelContext.getEndpoint("direct:callback-handler").createExchange();
+        exchange.getIn().setBody(callback);
+        producerTemplate.send("direct:callback-handler", exchange);
+
+        assertEquals("raw-id", exchange.getProperty(TRANSACTION_ID));
+    }
+
+    @Test
+    @DisplayName("callback-handler with null prefix keeps transaction id")
+    void callbackHandler_nullPrefix_keepsId() {
+        ReflectionTestUtils.setField(airtelMoneyRouteBuilder, "transactionIdPrefix", null);
+
+        CallbackDto.Transaction txn = new CallbackDto.Transaction();
+        txn.setId("plain-id");
+        txn.setStatusCode("TIP");
+        CallbackDto callback = new CallbackDto();
+        callback.setTransaction(txn);
+
+        Exchange exchange = camelContext.getEndpoint("direct:callback-handler").createExchange();
+        exchange.getIn().setBody(callback);
+        producerTemplate.send("direct:callback-handler", exchange);
+
+        assertEquals("plain-id", exchange.getProperty(TRANSACTION_ID));
     }
 
     private Exchange sendHandler(String routeId, String body, int httpCode) {

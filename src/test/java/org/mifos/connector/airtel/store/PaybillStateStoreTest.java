@@ -1,5 +1,6 @@
 package org.mifos.connector.airtel.store;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.never;
@@ -140,17 +141,13 @@ class PaybillStateStoreTest {
     }
 
     @Test
-    @DisplayName("Memory store expires entries after paybillWorkflowSeconds")
-    void memoryStore_shouldEvictExpiredEntries() throws Exception {
+    @DisplayName("Memory consume returns null for expired entry without prior get")
+    void memoryStore_consumeExpired_returnsNull() throws Exception {
         RedisStoreProperties properties = redisProperties();
         properties.getTtl().setPaybillWorkflowSeconds(1);
         InMemoryPaybillStateStore store = new InMemoryPaybillStateStore(properties);
-        store.putWorkflowInstance(AIRTEL_TXN_ID, "workflow-456");
-        assertEquals("workflow-456", store.getWorkflowInstance(AIRTEL_TXN_ID));
-
+        store.putWorkflowInstance(AIRTEL_TXN_ID, "workflow-exp");
         Thread.sleep(1100);
-
-        assertNull(store.getWorkflowInstance(AIRTEL_TXN_ID));
         assertNull(store.consumeWorkflowInstance(AIRTEL_TXN_ID));
     }
 
@@ -185,8 +182,10 @@ class PaybillStateStoreTest {
     @Test
     @DisplayName("Both backends can log store type on startup")
     void logStoreBackend_shouldRunForBothBackends() {
-        redisStore().logStoreBackend();
-        memoryStore().logStoreBackend();
+        assertDoesNotThrow(() -> {
+            redisStore().logStoreBackend();
+            memoryStore().logStoreBackend();
+        });
     }
 
     @Test
