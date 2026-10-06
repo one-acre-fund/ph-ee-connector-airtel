@@ -88,6 +88,24 @@ class PaybillStateStoreTest {
     }
 
     @Test
+    @DisplayName("Redis consume atomically get-and-deletes prefixed key")
+    void redisConsume_shouldGetAndDelete() {
+        when(valueOperations.getAndDelete(workflowKey(AIRTEL_TXN_ID))).thenReturn("workflow-456");
+
+        assertEquals("workflow-456", redisStore().consumeWorkflowInstance(AIRTEL_TXN_ID));
+        verify(valueOperations).getAndDelete(workflowKey(AIRTEL_TXN_ID));
+        verify(redisTemplate, never()).delete(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("Redis consume returns null when key missing")
+    void redisConsume_shouldReturnNullWhenMissing() {
+        when(valueOperations.getAndDelete(workflowKey(AIRTEL_TXN_ID))).thenReturn(null);
+
+        assertNull(redisStore().consumeWorkflowInstance(AIRTEL_TXN_ID));
+    }
+
+    @Test
     @DisplayName("Redis put is invoked once per call")
     void redisPut_shouldCallRedisOncePerPut() {
         RedisPaybillStateStore store = redisStore();
@@ -108,6 +126,32 @@ class PaybillStateStoreTest {
         store.removeWorkflowInstance(AIRTEL_TXN_ID);
         assertNull(store.getWorkflowInstance(AIRTEL_TXN_ID));
         verify(redisTemplate, never()).delete(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("Memory consume returns value once then null for concurrent second call")
+    void memoryStore_consume_shouldBeAtomic() {
+        InMemoryPaybillStateStore store = memoryStore();
+        store.putWorkflowInstance(AIRTEL_TXN_ID, "workflow-456");
+
+        assertEquals("workflow-456", store.consumeWorkflowInstance(AIRTEL_TXN_ID));
+        assertNull(store.consumeWorkflowInstance(AIRTEL_TXN_ID));
+        assertNull(store.getWorkflowInstance(AIRTEL_TXN_ID));
+    }
+
+    @Test
+    @DisplayName("Memory store expires entries after paybillWorkflowSeconds")
+    void memoryStore_shouldEvictExpiredEntries() throws Exception {
+        RedisStoreProperties properties = redisProperties();
+        properties.getTtl().setPaybillWorkflowSeconds(1);
+        InMemoryPaybillStateStore store = new InMemoryPaybillStateStore(properties);
+        store.putWorkflowInstance(AIRTEL_TXN_ID, "workflow-456");
+        assertEquals("workflow-456", store.getWorkflowInstance(AIRTEL_TXN_ID));
+
+        Thread.sleep(1100);
+
+        assertNull(store.getWorkflowInstance(AIRTEL_TXN_ID));
+        assertNull(store.consumeWorkflowInstance(AIRTEL_TXN_ID));
     }
 
     @Test

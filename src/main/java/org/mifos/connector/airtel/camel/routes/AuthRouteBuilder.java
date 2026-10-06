@@ -84,8 +84,15 @@ public class AuthRouteBuilder extends RouteBuilder {
             .unmarshal().json(AuthResponseDto.class)
             .process(exchange -> {
                 AuthResponseDto response = exchange.getIn().getBody(AuthResponseDto.class);
-                accessTokenStore.setAccessToken(airtelUtils.getCountryFromExchange(exchange),
-                        response.accessToken(), response.expiresIn());
+                String country = airtelUtils.getCountryFromExchange(exchange);
+                if (response.expiresIn() <= 0) {
+                    accessTokenStore.setAccessToken(country, response.accessToken(), response.expiresIn());
+                    String message = "Access token has non-positive expiry: " + response.expiresIn();
+                    logger.error(message);
+                    exchange.setProperty(ERROR_INFORMATION, message);
+                    return;
+                }
+                accessTokenStore.setAccessToken(country, response.accessToken(), response.expiresIn());
                 logger.info("Saved Access Token");
             });
 

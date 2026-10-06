@@ -1,6 +1,6 @@
 # Release Notes
 
-## Version 1.1.5.6
+## Version 1.1.6
         * [FD-1916] - Use redis for memory
 
 ## Version 1.1.5.6

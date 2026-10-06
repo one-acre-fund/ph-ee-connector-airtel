@@ -118,13 +118,12 @@ public class PaybillRouteBuilder extends RouteBuilder {
                 AirtelConfirmationRequest request = exchange.getProperty(CONFIRMATION_REQUEST_BODY,
                     AirtelConfirmationRequest.class);
                 String workflowTransactionId = paybillStateStore
-                    .getWorkflowInstance(request.transactionId());
+                    .consumeWorkflowInstance(request.transactionId());
                 if (workflowTransactionId == null) {
                     throw new WorkflowNotFoundException("No workflow instance found for "
                         + "transaction id " + request.transactionId()
                         + ". The transaction may not have been validated.");
                 }
-                paybillStateStore.removeWorkflowInstance(request.transactionId());
                 exchange.setProperty(CORRELATION_ID, workflowTransactionId);
             })
             .setProperty(TRANSACTION_ID, simple("${body.transactionId}"))

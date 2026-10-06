@@ -46,6 +46,11 @@ public class RedisPaybillStateStore implements PaybillStateStore {
         redisTemplate.delete(workflowKey(txnId));
     }
 
+    @Override
+    public String consumeWorkflowInstance(String txnId) {
+        return redisTemplate.opsForValue().getAndDelete(workflowKey(txnId));
+    }
+
     private String workflowKey(String txnId) {
         return keyPrefix + ":" + WORKFLOW_KEY_PREFIX + txnId;
     }

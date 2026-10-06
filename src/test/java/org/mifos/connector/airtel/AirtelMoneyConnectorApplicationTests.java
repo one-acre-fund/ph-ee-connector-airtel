@@ -14,7 +14,7 @@ import org.springframework.test.context.TestPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @CamelSpringBootTest
 @EnableAutoConfiguration(exclude = RedisAutoConfiguration.class)
-@Import(InMemoryRedisTestConfig.class)
+@Import({InMemoryRedisTestConfig.class, MockZeebeTestConfig.class})
 @TestPropertySource(properties = {
     "camel.server-port=0",
     "camel.springboot.main-run-controller=false",

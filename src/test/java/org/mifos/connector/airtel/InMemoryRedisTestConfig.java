@@ -56,6 +56,15 @@ public class InMemoryRedisTestConfig {
             return timedValue != null ? timedValue.value : null;
         });
 
+        when(ops.getAndDelete(anyString())).thenAnswer(invocation -> {
+            TimedValue timedValue = liveValue(store, invocation.getArgument(0));
+            if (timedValue == null) {
+                return null;
+            }
+            store.remove(invocation.getArgument(0));
+            return timedValue.value;
+        });
+
         when(template.hasKey(anyString())).thenAnswer(invocation ->
                 liveValue(store, invocation.getArgument(0)) != null);
 
