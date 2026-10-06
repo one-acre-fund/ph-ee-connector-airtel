@@ -8,7 +8,6 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.COUNTRY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CURRENCY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.DEPLOYED_PROCESS;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
-import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CHANNEL_REQUEST;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_CODE;
@@ -35,6 +34,7 @@ import org.apache.camel.ProducerTemplate;
 import org.apache.camel.support.DefaultExchange;
 import org.json.JSONObject;
 import org.mifos.connector.airtel.dto.CollectionRequestDto;
+import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +52,7 @@ public class ZeebeWorkers {
     private final ZeebeClient zeebeClient;
     private final AirtelUtils airtelUtils;
     private final CamelContext camelContext;
+    private final PaybillStateStore paybillStateStore;
 
     /**
      * Determines if an actual call to Airtel API will be made or not.
@@ -79,11 +80,13 @@ public class ZeebeWorkers {
      * @param camelContext     {@link CamelContext}
      */
     public ZeebeWorkers(ProducerTemplate producerTemplate, ZeebeClient zeebeClient,
-                        CamelContext camelContext, AirtelUtils airtelUtils) {
+                        CamelContext camelContext, AirtelUtils airtelUtils,
+                        PaybillStateStore paybillStateStore) {
         this.producerTemplate = producerTemplate;
         this.zeebeClient = zeebeClient;
         this.camelContext = camelContext;
         this.airtelUtils = airtelUtils;
+        this.paybillStateStore = paybillStateStore;
     }
 
     /**
@@ -214,7 +217,7 @@ public class ZeebeWorkers {
                 Map<String, Object> variables = job.getVariablesAsMap();
                 String transactionId = (String) variables.get(CLIENT_CORRELATION_ID);
                 logger.info("Removing Airtel txn id {} & instance key from store", transactionId);
-                workflowInstanceStore.remove(transactionId);
+                paybillStateStore.removeWorkflowInstance(transactionId);
                 Map<String, Object> completionVariables = new HashMap<>();
                 completionVariables.put(TRANSFER_CREATE_FAILED, true);
                 client.newCompleteCommand(job.getKey())

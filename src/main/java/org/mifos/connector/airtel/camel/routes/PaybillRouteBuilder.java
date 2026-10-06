@@ -43,6 +43,7 @@ import org.mifos.connector.airtel.dto.TransactionStatusResponse;
 import org.mifos.connector.airtel.dto.WorkflowResponse;
 import org.mifos.connector.airtel.exception.TransactionAlreadyExistsException;
 import org.mifos.connector.airtel.exception.WorkflowNotFoundException;
+import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
 import org.mifos.connector.common.channel.dto.TransactionStatusResponseDTO;
 import org.mifos.connector.common.mojaloop.type.TransferState;
@@ -58,12 +59,12 @@ import org.springframework.stereotype.Component;
 public class PaybillRouteBuilder extends RouteBuilder {
 
     private static final Logger logger = LoggerFactory.getLogger(PaybillRouteBuilder.class);
-    public static final Map<String, String> workflowInstanceStore = new HashMap<>();
     private final ZeebeClient zeebeClient;
     private final PaybillProps paybillProps;
     private final String channelUrl;
     private final AirtelUtils airtelUtils;
     private final int zeebeMessageTimeToLive;
+    private final PaybillStateStore paybillStateStore;
 
     /**
      * Creates a new {@link PaybillRouteBuilder} object.
@@ -74,12 +75,14 @@ public class PaybillRouteBuilder extends RouteBuilder {
      */
     public PaybillRouteBuilder(ZeebeClient zeebeClient, PaybillProps paybillProps,
                                @Value("${channel.host}") String channelUrl, AirtelUtils airtelUtils,
-                               @Value("${zeebe.client.ttl:30000}") int zeebeMessageTimeToLive) {
+                               @Value("${zeebe.client.ttl:30000}") int zeebeMessageTimeToLive,
+                               PaybillStateStore paybillStateStore) {
         this.zeebeClient = zeebeClient;
         this.paybillProps = paybillProps;
         this.channelUrl = channelUrl;
         this.airtelUtils = airtelUtils;
         this.zeebeMessageTimeToLive = zeebeMessageTimeToLive;
+        this.paybillStateStore = paybillStateStore;
     }
 
     @Override
@@ -114,13 +117,14 @@ public class PaybillRouteBuilder extends RouteBuilder {
             .process(exchange -> {
                 AirtelConfirmationRequest request = exchange.getProperty(CONFIRMATION_REQUEST_BODY,
                     AirtelConfirmationRequest.class);
-                String workflowTransactionId = workflowInstanceStore.get(request.transactionId());
+                String workflowTransactionId = paybillStateStore
+                    .getWorkflowInstance(request.transactionId());
                 if (workflowTransactionId == null) {
                     throw new WorkflowNotFoundException("No workflow instance found for "
                         + "transaction id " + request.transactionId()
                         + ". The transaction may not have been validated.");
                 }
-                workflowInstanceStore.remove(request.transactionId());
+                paybillStateStore.removeWorkflowInstance(request.transactionId());
                 exchange.setProperty(CORRELATION_ID, workflowTransactionId);
             })
             .setProperty(TRANSACTION_ID, simple("${body.transactionId}"))
@@ -315,7 +319,7 @@ public class PaybillRouteBuilder extends RouteBuilder {
                 }
                 ChannelValidationResponse validationResponse = exchange
                     .getProperty(CHANNEL_VALIDATION_RESPONSE, ChannelValidationResponse.class);
-                workflowInstanceStore.put(validationResponse.transactionId(),
+                paybillStateStore.putWorkflowInstance(validationResponse.transactionId(),
                     workflowResponse.transactionId());
                 return new AirtelValidationResponse("Client validation successful",
                     validationResponse.transactionId(), validationResponse.clientName());

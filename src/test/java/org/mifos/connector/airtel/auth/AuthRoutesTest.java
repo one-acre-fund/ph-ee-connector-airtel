@@ -5,7 +5,6 @@ import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.support.DefaultExchange;
 import org.apache.camel.component.mock.MockEndpoint;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mifos.connector.airtel.CamelRouteTestSupport;
@@ -22,11 +21,6 @@ class AuthRoutesTest extends CamelRouteTestSupport {
 
     @Autowired
     private AccessTokenStore accessTokenStore;
-
-    @BeforeEach
-    void clearAccessTokenStore() {
-        //accessTokenStore.clear();
-    }
 
     @DisplayName("Test Access Token Save Route")
     @Test

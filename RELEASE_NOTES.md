@@ -1,5 +1,7 @@
 # Release Notes
 
+## Version 1.1.5.6
+        * [FD-1916] - Use redis for memory
 
 ## Version 1.1.5.6
         * [TTSD-103620] - Debug Airtel transactions staying in progress 

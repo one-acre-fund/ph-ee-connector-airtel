@@ -1,3 +1,18 @@
+spring:
+  redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    timeout: 2000ms
+
+airtel-connector:
+  redis:
+    # redis (default) | memory — in-memory ConcurrentHashMap backup for local/single-pod
+    type: ${AIRTEL_PAYBILL_STORE_TYPE:redis}
+    key-prefix: ${REDIS_KEY_PREFIX:airtel-connector}
+    ttl:
+      paybill-workflow-seconds: ${REDIS_TTL_PAYBILL_WORKFLOW_SECONDS:172800}
+
 camel:
   server-port: 5000
   springboot:

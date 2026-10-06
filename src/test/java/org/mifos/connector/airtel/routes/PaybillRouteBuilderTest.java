@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CONFIRMATION_REQUEST_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.CORRELATION_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
-import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 
 import org.mifos.connector.common.channel.dto.TransactionStatusResponseDTO;
@@ -17,7 +16,6 @@ import java.math.BigDecimal;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mifos.connector.airtel.CamelRouteTestSupport;
@@ -32,11 +30,6 @@ import org.mifos.connector.airtel.dto.AirtelConfirmationRequest;
 class PaybillRouteBuilderTest extends CamelRouteTestSupport {
 
     private static final String ROUTE_ID = "paybill-transaction-status-check-base";
-
-    @AfterEach
-    void clearWorkflowStore() {
-        workflowInstanceStore.clear();
-    }
 
     /**
      * Build a minimal {@link AirtelConfirmationRequest} with the given currency.

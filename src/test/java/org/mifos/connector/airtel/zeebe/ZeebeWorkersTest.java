@@ -8,7 +8,6 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.GET_TRANSACTION_ST
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INIT_TRANSFER_WORKER_NAME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_CREATE_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
-import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -38,10 +37,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Tests for {@link ZeebeWorkers} verifying that PLATFORM_TENANT_ID is set
@@ -53,6 +51,7 @@ class ZeebeWorkersTest {
     private ProducerTemplate producerTemplate;
     private CamelContext camelContext;
     private AirtelUtils airtelUtils;
+    private PaybillStateStore paybillStateStore;
 
     private ZeebeWorkers zeebeWorkers;
 
@@ -74,6 +73,7 @@ class ZeebeWorkersTest {
         producerTemplate = mock(ProducerTemplate.class);
         camelContext = new DefaultCamelContext();
         airtelUtils = mock(AirtelUtils.class);
+        paybillStateStore = mock(PaybillStateStore.class);
 
         // Stub fluent Zeebe worker builder — capture each handler by its jobType
         JobWorkerBuilderStep1 step1 = mock(JobWorkerBuilderStep1.class);
@@ -91,7 +91,8 @@ class ZeebeWorkersTest {
 
         Map<String, String> countryCodes = Map.of("zmw", "zambia", "rwf", "rwanda");
 
-        zeebeWorkers = new ZeebeWorkers(producerTemplate, zeebeClient, camelContext, airtelUtils);
+        zeebeWorkers = new ZeebeWorkers(producerTemplate, zeebeClient, camelContext, airtelUtils,
+                paybillStateStore);
         ReflectionTestUtils.setField(zeebeWorkers, "skipAirtelMoney", false);
         ReflectionTestUtils.setField(zeebeWorkers, "workerMaxJobs", 1);
         ReflectionTestUtils.setField(zeebeWorkers, "countryCodes", countryCodes);
@@ -168,8 +169,6 @@ class ZeebeWorkersTest {
     @DisplayName("cleanup worker removes workflow mapping and marks transferCreateFailed")
     @Test
     void cleanupWorker_marksTransferCreateFailed() throws Exception {
-        workflowInstanceStore.put("airtel-txn-1", "channel-txn-1");
-
         ActivatedJob job = mockActivatedJob(Map.of(
             CLIENT_CORRELATION_ID, "airtel-txn-1"
         ));
@@ -179,7 +178,7 @@ class ZeebeWorkersTest {
 
         capturedHandlers.get("delete-airtel-workflow-instancekey").handle(jobClient, job);
 
-        assertFalse(workflowInstanceStore.containsKey("airtel-txn-1"));
+        verify(paybillStateStore).removeWorkflowInstance("airtel-txn-1");
         assertEquals(true, variablesCaptor.getValue().get(TRANSFER_CREATE_FAILED));
     }
 
