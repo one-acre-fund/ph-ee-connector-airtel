@@ -1,16 +1,23 @@
 package org.mifos.connector.airtel.zeebe;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CHANNEL_REQUEST;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CLIENT_CORRELATION_ID;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_CODE;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_DESCRIPTION;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.GET_TRANSACTION_STATUS_WORKER_NAME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INIT_TRANSFER_WORKER_NAME;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_CREATE_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
-import static org.mifos.connector.airtel.camel.routes.PaybillRouteBuilder.workflowInstanceStore;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_MESSAGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -20,14 +27,17 @@ import static org.mockito.Mockito.when;
 import io.camunda.zeebe.client.ZeebeClient;
 import io.camunda.zeebe.client.api.ZeebeFuture;
 import io.camunda.zeebe.client.api.command.CompleteJobCommandStep1;
+import io.camunda.zeebe.client.api.command.PublishMessageCommandStep1;
 import io.camunda.zeebe.client.api.response.ActivatedJob;
 import io.camunda.zeebe.client.api.response.CompleteJobResponse;
+import io.camunda.zeebe.client.api.response.PublishMessageResponse;
 import io.camunda.zeebe.client.api.worker.JobClient;
 import io.camunda.zeebe.client.api.worker.JobHandler;
 import io.camunda.zeebe.client.api.worker.JobWorker;
 import io.camunda.zeebe.client.api.worker.JobWorkerBuilderStep1;
 import io.camunda.zeebe.client.api.worker.JobWorkerBuilderStep1.JobWorkerBuilderStep2;
 import io.camunda.zeebe.client.api.worker.JobWorkerBuilderStep1.JobWorkerBuilderStep3;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.camel.CamelContext;
@@ -38,10 +48,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Tests for {@link ZeebeWorkers} verifying that PLATFORM_TENANT_ID is set
@@ -53,6 +62,7 @@ class ZeebeWorkersTest {
     private ProducerTemplate producerTemplate;
     private CamelContext camelContext;
     private AirtelUtils airtelUtils;
+    private PaybillStateStore paybillStateStore;
 
     private ZeebeWorkers zeebeWorkers;
 
@@ -74,6 +84,7 @@ class ZeebeWorkersTest {
         producerTemplate = mock(ProducerTemplate.class);
         camelContext = new DefaultCamelContext();
         airtelUtils = mock(AirtelUtils.class);
+        paybillStateStore = mock(PaybillStateStore.class);
 
         // Stub fluent Zeebe worker builder — capture each handler by its jobType
         JobWorkerBuilderStep1 step1 = mock(JobWorkerBuilderStep1.class);
@@ -91,7 +102,8 @@ class ZeebeWorkersTest {
 
         Map<String, String> countryCodes = Map.of("zmw", "zambia", "rwf", "rwanda");
 
-        zeebeWorkers = new ZeebeWorkers(producerTemplate, zeebeClient, camelContext, airtelUtils);
+        zeebeWorkers = new ZeebeWorkers(producerTemplate, zeebeClient, camelContext, airtelUtils,
+                paybillStateStore);
         ReflectionTestUtils.setField(zeebeWorkers, "skipAirtelMoney", false);
         ReflectionTestUtils.setField(zeebeWorkers, "workerMaxJobs", 1);
         ReflectionTestUtils.setField(zeebeWorkers, "countryCodes", countryCodes);
@@ -168,8 +180,6 @@ class ZeebeWorkersTest {
     @DisplayName("cleanup worker removes workflow mapping and marks transferCreateFailed")
     @Test
     void cleanupWorker_marksTransferCreateFailed() throws Exception {
-        workflowInstanceStore.put("airtel-txn-1", "channel-txn-1");
-
         ActivatedJob job = mockActivatedJob(Map.of(
             CLIENT_CORRELATION_ID, "airtel-txn-1"
         ));
@@ -179,8 +189,82 @@ class ZeebeWorkersTest {
 
         capturedHandlers.get("delete-airtel-workflow-instancekey").handle(jobClient, job);
 
-        assertFalse(workflowInstanceStore.containsKey("airtel-txn-1"));
+        verify(paybillStateStore).removeWorkflowInstance("airtel-txn-1");
         assertEquals(true, variablesCaptor.getValue().get(TRANSFER_CREATE_FAILED));
+    }
+
+    @DisplayName("init-transfer skip path marks transaction successful without calling Airtel")
+    @Test
+    void initTransferWorker_skipEnabled_marksSuccess() throws Exception {
+        ReflectionTestUtils.setField(zeebeWorkers, "skipAirtelMoney", true);
+        ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+        JobClient jobClient = mockJobClientWithVariableCapture(variablesCaptor);
+
+        capturedHandlers.get(INIT_TRANSFER_WORKER_NAME)
+                .handle(jobClient, mockActivatedJob(Map.of(TRANSACTION_ID, "txn-skip")));
+
+        Map<String, Object> vars = variablesCaptor.getValue();
+        assertFalse((Boolean) vars.get(TRANSACTION_FAILED));
+        assertFalse((Boolean) vars.get(TRANSFER_CREATE_FAILED));
+    }
+
+    @DisplayName("init-transfer failure path copies error variables from exchange")
+    @Test
+    void initTransferWorker_failurePath_copiesErrors() throws Exception {
+        when(airtelUtils.getCountryFromCurrency("ZMW")).thenReturn("zambia");
+        when(producerTemplate.send(eq("direct:collection-request-base"), any(Exchange.class)))
+                .thenAnswer(inv -> {
+                    Exchange ex = inv.getArgument(1);
+                    ex.setProperty(TRANSACTION_FAILED, true);
+                    ex.setProperty(ERROR_INFORMATION, "fail-body");
+                    ex.setProperty(ERROR_CODE, "E1");
+                    ex.setProperty(ERROR_DESCRIPTION, "desc");
+                    return ex;
+                });
+
+        ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+        JobClient jobClient = mockJobClientWithVariableCapture(variablesCaptor);
+
+        capturedHandlers.get(INIT_TRANSFER_WORKER_NAME).handle(jobClient, mockActivatedJob(Map.of(
+                CHANNEL_REQUEST, CHANNEL_REQUEST_JSON,
+                TRANSACTION_ID, "txn-fail"
+        )));
+
+        Map<String, Object> vars = variablesCaptor.getValue();
+        assertTrue((Boolean) vars.get(TRANSACTION_FAILED));
+        assertTrue((Boolean) vars.get(TRANSFER_CREATE_FAILED));
+        assertEquals("fail-body", vars.get(ERROR_INFORMATION));
+        assertEquals("E1", vars.get(ERROR_CODE));
+        assertEquals("desc", vars.get(ERROR_DESCRIPTION));
+    }
+
+    @DisplayName("get-transaction-status skip path publishes transfer message")
+    @Test
+    void getTransactionStatusWorker_skipEnabled_publishesMessage() throws Exception {
+        ReflectionTestUtils.setField(zeebeWorkers, "skipAirtelMoney", true);
+        ReflectionTestUtils.setField(zeebeWorkers, "zeebeMessageTimeToLive", 30000);
+
+        PublishMessageCommandStep1 step1 = mock(PublishMessageCommandStep1.class);
+        PublishMessageCommandStep1.PublishMessageCommandStep2 step2 =
+                mock(PublishMessageCommandStep1.PublishMessageCommandStep2.class);
+        PublishMessageCommandStep1.PublishMessageCommandStep3 step3 =
+                mock(PublishMessageCommandStep1.PublishMessageCommandStep3.class);
+        @SuppressWarnings("unchecked")
+        ZeebeFuture<PublishMessageResponse> future = mock(ZeebeFuture.class);
+        when(zeebeClient.newPublishMessageCommand()).thenReturn(step1);
+        when(step1.messageName(anyString())).thenReturn(step2);
+        when(step2.correlationKey(anyString())).thenReturn(step3);
+        when(step3.timeToLive(any(Duration.class))).thenReturn(step3);
+        when(step3.variables(anyMap())).thenReturn(step3);
+        when(step3.send()).thenReturn(future);
+        when(future.join()).thenReturn(null);
+
+        JobClient jobClient = mockJobClient();
+        capturedHandlers.get(GET_TRANSACTION_STATUS_WORKER_NAME)
+                .handle(jobClient, mockActivatedJob(Map.of(TRANSACTION_ID, "txn-status-skip")));
+
+        verify(step1).messageName(TRANSFER_MESSAGE);
+        verify(step2).correlationKey("txn-status-skip");
     }
 
     // ----- helpers -------------------------------------------------------

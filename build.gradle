@@ -8,7 +8,7 @@ plugins {
 
 group = 'org.mifos'
 sourceCompatibility = '17'
-version = '1.1.5.6'
+version = '1.1.6'
 
 def camelCoreVersion = '3.19.0'
 def phConnectorCommonVersion = '1.5.1-gazelle'
@@ -26,6 +26,7 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'io.micrometer:micrometer-registry-prometheus'
 	implementation "org.apache.camel.springboot:camel-spring-boot-starter:${camelCoreVersion}"
 	implementation 'io.camunda:zeebe-client-java:8.1.4'
@@ -64,6 +65,13 @@ jacocoTestReport {
 		html.required = true // Enable HTML report generation
 		xml.destination file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml")
 		html.destination file("${buildDir}/reports/jacoco/test/html")
+	}
+	afterEvaluate {
+		classDirectories.setFrom(files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: [
+				'**/AirtelMoneyConnectorApplication.class'
+			])
+		}))
 	}
 }
 

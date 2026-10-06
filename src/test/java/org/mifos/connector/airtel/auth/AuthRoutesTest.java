@@ -5,7 +5,6 @@ import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.support.DefaultExchange;
 import org.apache.camel.component.mock.MockEndpoint;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mifos.connector.airtel.CamelRouteTestSupport;
@@ -15,18 +14,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 
 class AuthRoutesTest extends CamelRouteTestSupport {
 
     @Autowired
     private AccessTokenStore accessTokenStore;
-
-    @BeforeEach
-    void clearAccessTokenStore() {
-        //accessTokenStore.clear();
-    }
 
     @DisplayName("Test Access Token Save Route")
     @Test
@@ -50,10 +47,32 @@ class AuthRoutesTest extends CamelRouteTestSupport {
 
         // Assertions
         Assertions.assertEquals("test-access-token", accessTokenStore.getAccessToken("rwanda").getToken());
+        assertNull(exchange.getProperty(ERROR_INFORMATION));
         assertTrue(
                 !actualExpirationTime.isBefore(expectedExpirationTime.minusSeconds(5))
                         && !actualExpirationTime.isAfter(expectedExpirationTime.plusSeconds(5)),
                 "Expiration time is within tolerance range");
+    }
+
+    @DisplayName("Non-positive expires_in sets ERROR_INFORMATION and does not leave a usable token")
+    @Test
+    void testAccessTokenSaveRoute_nonPositiveExpirySetsError() {
+        String inputJson = """
+                {
+                  "access_token": "bad-token",
+                  "expires_in": 0
+                }
+                """;
+
+        Exchange exchange = new DefaultExchange(camelContext);
+        exchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
+        exchange.getIn().setBody(inputJson);
+        producerTemplate.send("direct:access-token-save", exchange);
+
+        assertNotNull(exchange.getProperty(ERROR_INFORMATION));
+        assertTrue(exchange.getProperty(ERROR_INFORMATION, String.class)
+                .contains("non-positive expiry"));
+        assertNull(accessTokenStore.getAccessToken("rwanda"));
     }
 
     @DisplayName("Test Access Token Error Route")

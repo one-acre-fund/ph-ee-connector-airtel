@@ -16,6 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+
 /**
  * Route handlers for authentication.
  */
@@ -43,7 +45,7 @@ public class AuthRouteBuilder extends RouteBuilder {
             .id("get-access-token")
             .choice()
             .when(exchange -> accessTokenStore.isValid(
-                airtelUtils.getCountryFromExchange(exchange), LocalDateTime.now()))
+                airtelUtils.getCountryFromExchange(exchange), LocalDateTime.now(ZoneId.systemDefault())))
             .log("Access token valid. Continuing.")
             .otherwise()
             .log("Access token expired or not present")
@@ -84,8 +86,15 @@ public class AuthRouteBuilder extends RouteBuilder {
             .unmarshal().json(AuthResponseDto.class)
             .process(exchange -> {
                 AuthResponseDto response = exchange.getIn().getBody(AuthResponseDto.class);
-                accessTokenStore.setAccessToken(airtelUtils.getCountryFromExchange(exchange),
-                        response.accessToken(), response.expiresIn());
+                String country = airtelUtils.getCountryFromExchange(exchange);
+                if (response.expiresIn() <= 0) {
+                    accessTokenStore.setAccessToken(country, response.accessToken(), response.expiresIn());
+                    String message = "Access token has non-positive expiry: " + response.expiresIn();
+                    logger.error(message);
+                    exchange.setProperty(ERROR_INFORMATION, message);
+                    return;
+                }
+                accessTokenStore.setAccessToken(country, response.accessToken(), response.expiresIn());
                 logger.info("Saved Access Token");
             });
 

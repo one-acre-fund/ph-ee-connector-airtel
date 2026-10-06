@@ -1,61 +1,137 @@
 package org.mifos.connector.airtel.auth;
 
-import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mifos.connector.airtel.config.RedisStoreProperties;
 import org.mifos.connector.airtel.store.AccessTokenStore;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AccessTokenStoreTest {
 
     private static final String COUNTRY = "UG";
+    private static final String KEY_PREFIX = "test-prefix";
+    private static final String ACCESS_TOKEN_KEY = KEY_PREFIX + ":access_token:" + COUNTRY;
+
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
+    private AccessTokenStore accessTokenStore;
+
+    @BeforeEach
+    void setUp() {
+        RedisStoreProperties properties = new RedisStoreProperties();
+        properties.setKeyPrefix(KEY_PREFIX);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        accessTokenStore = new AccessTokenStore(redisTemplate, properties);
+    }
 
     @DisplayName("Store and retrieve access token string value")
     @Test
     void store_and_retrieve_access_token() {
-        AccessTokenStore tokenStore = new AccessTokenStore();
+        accessTokenStore.setAccessToken(COUNTRY, "test-access-token-123", 3600);
 
-        String testToken = "test-access-token-123";
-        tokenStore.setAccessToken(COUNTRY, testToken, 3600);
+        verify(valueOperations).set(ACCESS_TOKEN_KEY, "test-access-token-123", 3600, TimeUnit.SECONDS);
 
-        String retrievedToken = tokenStore.getAccessToken(COUNTRY).getToken();
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("test-access-token-123");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(3600L);
 
-        Assertions.assertEquals(testToken, retrievedToken);
+        assertEquals("test-access-token-123", accessTokenStore.getAccessToken(COUNTRY).getToken());
     }
 
     @DisplayName("Check token validity with null datetime parameter")
     @Test
     void check_token_validity_with_null_datetime() {
-        AccessTokenStore tokenStore = new AccessTokenStore();
-        boolean isValid = tokenStore.isValid(COUNTRY, null);
-        Assertions.assertFalse(isValid, "isValid should return false when datetime is null");
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(3600L);
+
+        boolean isValid = accessTokenStore.isValid(COUNTRY, null);
+        assertFalse(isValid, "isValid should return false when datetime is null");
     }
 
     @DisplayName("Return true when input datetime is before expiration time")
     @Test
     void test_valid_token_before_expiry() {
-        AccessTokenStore tokenStore = new AccessTokenStore();
-        tokenStore.setAccessToken(COUNTRY, "token", 3600);
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(3600L);
         LocalDateTime testTime = LocalDateTime.now();
 
-        boolean isValid = tokenStore.isValid(COUNTRY, testTime);
+        boolean isValid = accessTokenStore.isValid(COUNTRY, testTime);
 
-        Assertions.assertTrue(isValid);
-        Assertions.assertNotNull(tokenStore.getExpiresOn(COUNTRY), "Expiration time should be set");
-        Assertions.assertTrue(tokenStore.getExpiresOn(COUNTRY).isAfter(LocalDateTime.now()),
+        assertTrue(isValid);
+        assertNotNull(accessTokenStore.getExpiresOn(COUNTRY), "Expiration time should be set");
+        assertTrue(accessTokenStore.getExpiresOn(COUNTRY).isAfter(LocalDateTime.now()),
                 "Expiration time should be in the future");
     }
 
     @DisplayName("Return false when input datetime is after expiration time")
     @Test
+    void test_invalid_token_after_expiry() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(1L);
+
+        assertFalse(accessTokenStore.isValid(COUNTRY, LocalDateTime.now().plusHours(1)));
+    }
+
+    @DisplayName("Return null expiresOn when token missing")
+    @Test
+    void getExpiresOn_returnsNullWhenMissing() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn(null);
+        assertNull(accessTokenStore.getExpiresOn(COUNTRY));
+    }
+
+    @DisplayName("Zero TTL yields expiresOn of approximately now")
+    @Test
+    void getAccessToken_zeroTtl_usesNow() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(0L);
+
+        assertNotNull(accessTokenStore.getAccessToken(COUNTRY));
+        assertTrue(accessTokenStore.getAccessToken(COUNTRY).getExpiresOn()
+                .isBefore(LocalDateTime.now().plusSeconds(2)));
+    }
+
+    @DisplayName("Null TTL yields expiresOn of approximately now")
+    @Test
+    void getAccessToken_nullTtl_usesNow() {
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn("token");
+        when(redisTemplate.getExpire(ACCESS_TOKEN_KEY, TimeUnit.SECONDS)).thenReturn(null);
+
+        assertNotNull(accessTokenStore.getAccessToken(COUNTRY).getToken());
+    }
+
+    @DisplayName("Return false when token is missing after non-positive expiresIn")
+    @Test
     void test_expired_token_after_expiry() {
-        AccessTokenStore tokenStore = new AccessTokenStore();
-        tokenStore.setAccessToken(COUNTRY, "token", -3600);
-        LocalDateTime testTime = LocalDateTime.now();
+        accessTokenStore.setAccessToken(COUNTRY, "token", -3600);
 
-        boolean isValid = tokenStore.isValid(COUNTRY, testTime);
+        verify(redisTemplate).delete(ACCESS_TOKEN_KEY);
+        when(valueOperations.get(ACCESS_TOKEN_KEY)).thenReturn(null);
 
-        Assertions.assertFalse(isValid);
+        assertFalse(accessTokenStore.isValid(COUNTRY, LocalDateTime.now()));
+        assertNull(accessTokenStore.getAccessToken(COUNTRY));
     }
 }

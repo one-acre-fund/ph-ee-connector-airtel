@@ -2,6 +2,7 @@ package org.mifos.connector.airtel.zeebe;
 
 import io.camunda.zeebe.client.ZeebeClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -23,6 +24,7 @@ public class ZeebeClientConfiguration {
      * @return {@link ZeebeClient}
      */
     @Bean
+    @ConditionalOnMissingBean(ZeebeClient.class)
     public ZeebeClient setup() {
         return ZeebeClient.newClientBuilder()
             .gatewayAddress(zeebeBrokerContactPoint)

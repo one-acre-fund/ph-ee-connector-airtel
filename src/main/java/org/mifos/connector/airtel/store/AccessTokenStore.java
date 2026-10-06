@@ -1,22 +1,51 @@
 package org.mifos.connector.airtel.store;
 
+import org.mifos.connector.airtel.config.RedisStoreProperties;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+
 import java.time.LocalDateTime;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.ZoneId;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Class that holds the access tokens by country.
+ * Class that holds the access tokens by country in Redis.
  */
 @Component
 public class AccessTokenStore {
-    private final ConcurrentHashMap<String, TokenEntry> tokens = new ConcurrentHashMap<>();
 
+    private final StringRedisTemplate redisTemplate;
+    private final String keyPrefix;
+
+    public AccessTokenStore(StringRedisTemplate redisTemplate, RedisStoreProperties props) {
+        this.redisTemplate = redisTemplate;
+        this.keyPrefix = props.getKeyPrefix();
+    }
+
+    /**
+     * Atomically stores the token with TTL equal to {@code expiresIn} seconds.
+     * Tokens with non-positive expiry are removed so callers see them as invalid.
+     */
     public void setAccessToken(String country, String accessToken, int expiresIn) {
-        tokens.put(country, new TokenEntry(accessToken, LocalDateTime.now().plusSeconds(expiresIn)));
+        String key = accessTokenKey(country);
+        if (expiresIn <= 0) {
+            redisTemplate.delete(key);
+            return;
+        }
+        redisTemplate.opsForValue().set(key, accessToken, expiresIn, TimeUnit.SECONDS);
     }
 
     public TokenEntry getAccessToken(String country) {
-        return tokens.get(country);
+        String key = accessTokenKey(country);
+        String token = redisTemplate.opsForValue().get(key);
+        if (token == null) {
+            return null;
+        }
+        Long ttlSeconds = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+        LocalDateTime expiresOn = (ttlSeconds != null && ttlSeconds > 0)
+                ? LocalDateTime.now(ZoneId.systemDefault()).plusSeconds(ttlSeconds)
+                : LocalDateTime.now(ZoneId.systemDefault());
+        return new TokenEntry(token, expiresOn);
     }
 
     public LocalDateTime getExpiresOn(String country) {
@@ -34,5 +63,9 @@ public class AccessTokenStore {
     public boolean isValid(String country, LocalDateTime dateTime) {
         TokenEntry expiry = getAccessToken(country);
         return expiry != null && dateTime != null && dateTime.isBefore(expiry.getExpiresOn());
+    }
+
+    private String accessTokenKey(String country) {
+        return keyPrefix + ":access_token:" + country;
     }
 }
