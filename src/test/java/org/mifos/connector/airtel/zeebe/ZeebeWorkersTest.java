@@ -103,7 +103,7 @@ class ZeebeWorkersTest {
         Map<String, String> countryCodes = Map.of("zmw", "zambia", "rwf", "rwanda");
 
         zeebeWorkers = new ZeebeWorkers(producerTemplate, zeebeClient, camelContext, airtelUtils,
-                paybillStateStore);
+                paybillStateStore, new ZeebeWorkerDrain(Duration.ofSeconds(5), Duration.ofSeconds(5)));
         ReflectionTestUtils.setField(zeebeWorkers, "skipAirtelMoney", false);
         ReflectionTestUtils.setField(zeebeWorkers, "workerMaxJobs", 1);
         ReflectionTestUtils.setField(zeebeWorkers, "countryCodes", countryCodes);

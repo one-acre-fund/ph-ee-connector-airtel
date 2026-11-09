@@ -1,5 +1,7 @@
 package org.mifos.connector.airtel.zeebe;
 
+import org.springframework.context.event.EventListener;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_REQUEST_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_RESPONSE_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_TRANSACTION_ID;
@@ -27,7 +29,6 @@ import io.camunda.zeebe.client.ZeebeClient;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import javax.annotation.PostConstruct;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
@@ -50,6 +51,7 @@ public class ZeebeWorkers {
     private static final Logger logger = LoggerFactory.getLogger(ZeebeWorkers.class);
     private final ProducerTemplate producerTemplate;
     private final ZeebeClient zeebeClient;
+    private final ZeebeWorkerDrain drain;
     private final AirtelUtils airtelUtils;
     private final CamelContext camelContext;
     private final PaybillStateStore paybillStateStore;
@@ -81,7 +83,8 @@ public class ZeebeWorkers {
      */
     public ZeebeWorkers(ProducerTemplate producerTemplate, ZeebeClient zeebeClient,
                         CamelContext camelContext, AirtelUtils airtelUtils,
-                        PaybillStateStore paybillStateStore) {
+                        PaybillStateStore paybillStateStore, ZeebeWorkerDrain drain) {
+        this.drain = drain;
         this.producerTemplate = producerTemplate;
         this.zeebeClient = zeebeClient;
         this.camelContext = camelContext;
@@ -92,11 +95,14 @@ public class ZeebeWorkers {
     /**
      * Sets up the necessary Zeebe workers for airtel money transactions.
      */
-    @PostConstruct
+    // Workers open only once the application is ready, after Camel and the web server have
+    // started. Opened earlier, a starting pod activates jobs it cannot process yet, and a pod
+    // replaced during startup would hold them until the broker job timeout (FD-1939).
+    @EventListener(ApplicationReadyEvent.class)
     public void setupWorkers() {
-        zeebeClient.newWorker()
+        drain.register(zeebeClient.newWorker()
             .jobType(INIT_TRANSFER_WORKER_NAME)
-            .handler((client, job) -> {
+            .handler(drain.track((client, job) -> {
                 logger.info("Job '{}' started from process '{}' with key {}", job.getType(),
                     job.getBpmnProcessId(), job.getKey());
 
@@ -151,14 +157,14 @@ public class ZeebeWorkers {
                     .variables(variables)
                     .send()
                     .join();
-            })
+            }))
             .name(INIT_TRANSFER_WORKER_NAME)
             .maxJobsActive(workerMaxJobs)
-            .open();
+            .open());
 
-        zeebeClient.newWorker()
+        drain.register(zeebeClient.newWorker()
             .jobType(GET_TRANSACTION_STATUS_WORKER_NAME)
-            .handler((client, job) -> {
+            .handler(drain.track((client, job) -> {
                 logger.info("Job '{}' started from process '{}' with key {}", job.getType(),
                     job.getBpmnProcessId(), job.getKey());
 
@@ -206,14 +212,14 @@ public class ZeebeWorkers {
                 client.newCompleteCommand(job.getKey())
                     .send()
                     .join();
-            })
+            }))
             .name(GET_TRANSACTION_STATUS_WORKER_NAME)
             .maxJobsActive(workerMaxJobs)
-            .open();
+            .open());
 
-        zeebeClient.newWorker()
+        drain.register(zeebeClient.newWorker()
             .jobType("delete-airtel-workflow-instancekey")
-            .handler(((client, job) -> {
+            .handler(drain.track(((client, job) -> {
                 Map<String, Object> variables = job.getVariablesAsMap();
                 String transactionId = (String) variables.get(CLIENT_CORRELATION_ID);
                 logger.info("Removing Airtel txn id {} & instance key from store", transactionId);
@@ -224,9 +230,9 @@ public class ZeebeWorkers {
                     .variables(completionVariables)
                     .send()
                     .join();
-            }))
+            })))
             .name("Cleanup")
             .maxJobsActive(workerMaxJobs)
-            .open();
+            .open());
     }
 }
