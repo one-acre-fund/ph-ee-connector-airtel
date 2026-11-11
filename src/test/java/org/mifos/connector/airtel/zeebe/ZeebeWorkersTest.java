@@ -12,8 +12,8 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.GET_TRANSACTION_STATUS_WORKER_NAME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.INIT_TRANSFER_WORKER_NAME;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED;
-import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_CREATE_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_CREATE_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSFER_MESSAGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -47,9 +47,9 @@ import org.apache.camel.impl.DefaultCamelContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -100,10 +100,11 @@ class ZeebeWorkersTest {
         when(step3.maxJobsActive(anyInt())).thenReturn(step3);
         when(step3.open()).thenReturn(jobWorker);
 
-        Map<String, String> countryCodes = Map.of("zmw", "zambia", "rwf", "rwanda");
+        final Map<String, String> countryCodes = Map.of("zmw", "zambia", "rwf", "rwanda");
 
         zeebeWorkers = new ZeebeWorkers(producerTemplate, zeebeClient, camelContext, airtelUtils,
-                paybillStateStore, new ZeebeWorkerDrain(Duration.ofSeconds(5), Duration.ofSeconds(5)));
+                paybillStateStore,
+                new ZeebeWorkerDrain(Duration.ofSeconds(5), Duration.ofSeconds(5)));
         ReflectionTestUtils.setField(zeebeWorkers, "skipAirtelMoney", false);
         ReflectionTestUtils.setField(zeebeWorkers, "workerMaxJobs", 1);
         ReflectionTestUtils.setField(zeebeWorkers, "countryCodes", countryCodes);
@@ -120,7 +121,8 @@ class ZeebeWorkersTest {
         capturedHandlers.put("delete-airtel-workflow-instancekey", allHandlers.get(2));
     }
 
-    @DisplayName("init-transfer worker sets PLATFORM_TENANT_ID from airtelUtils.getCountryFromCurrency (line 117)")
+    @DisplayName("init-transfer worker sets PLATFORM_TENANT_ID from "
+            + "airtelUtils.getCountryFromCurrency (line 117)")
     @Test
     void initTransferWorker_setsPlatformTenantId() throws Exception {
         when(airtelUtils.getCountryFromCurrency("ZMW")).thenReturn("zambia");
@@ -134,13 +136,13 @@ class ZeebeWorkersTest {
 
         // Capture the exchange sent to the producer template
         ArgumentCaptor<Exchange> exchangeCaptor = ArgumentCaptor.forClass(Exchange.class);
-        when(producerTemplate.send(eq("direct:collection-request-base"),
-                exchangeCaptor.capture())).thenAnswer(inv -> {
-            Exchange ex = inv.getArgument(1);
-            // Simulate a successful response so the handler doesn't NPE
-            ex.setProperty("transactionFailed", false);
-            return ex;
-        });
+        when(producerTemplate.send(eq("direct:collection-request-base"), exchangeCaptor.capture()))
+                .thenAnswer(inv -> {
+                    Exchange ex = inv.getArgument(1);
+                    // Simulate a successful response so the handler doesn't NPE
+                    ex.setProperty("transactionFailed", false);
+                    return ex;
+                });
 
         // Execute the captured handler
         capturedHandlers.get(INIT_TRANSFER_WORKER_NAME).handle(jobClient, job);
@@ -151,7 +153,8 @@ class ZeebeWorkersTest {
         assertEquals("zambia", sentExchange.getProperty(PLATFORM_TENANT_ID));
     }
 
-    @DisplayName("get-transaction-status worker sets PLATFORM_TENANT_ID from airtelUtils.getCountryFromCurrency (line 194)")
+    @DisplayName("get-transaction-status worker sets PLATFORM_TENANT_ID from "
+            + "airtelUtils.getCountryFromCurrency (line 194)")
     @Test
     void getTransactionStatusWorker_setsPlatformTenantId() throws Exception {
         when(airtelUtils.getCountryFromCurrency("ZMW")).thenReturn("zambia");
@@ -286,7 +289,8 @@ class ZeebeWorkersTest {
     }
 
     @SuppressWarnings("unchecked")
-    private JobClient mockJobClientWithVariableCapture(ArgumentCaptor<Map<String, Object>> variablesCaptor) {
+    private JobClient mockJobClientWithVariableCapture(
+            ArgumentCaptor<Map<String, Object>> variablesCaptor) {
         JobClient jobClient = mock(JobClient.class);
         CompleteJobCommandStep1 completeStep = mock(CompleteJobCommandStep1.class);
         ZeebeFuture<CompleteJobResponse> future = mock(ZeebeFuture.class);

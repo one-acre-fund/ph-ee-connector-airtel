@@ -29,7 +29,8 @@ class ZeebeWorkerDrainTest {
     private final JobClient client = mock(JobClient.class, RETURNS_DEEP_STUBS);
     private final ActivatedJob job = mock(ActivatedJob.class);
     private final JobWorker worker = mock(JobWorker.class);
-    private final ContextClosedEvent closing = new ContextClosedEvent(mock(ConfigurableApplicationContext.class));
+    private final ContextClosedEvent closing =
+            new ContextClosedEvent(mock(ConfigurableApplicationContext.class));
 
     @Test
     void stopClosesWorkersFirstAndWaitsForTheRunningHandler() throws Exception {
@@ -77,13 +78,15 @@ class ZeebeWorkerDrainTest {
         assertFalse(ran[0], "late job must not run its handler");
         verify(client.newFailCommand(42L)).retries(3);
         verify(client.newFailCommand(42L).retries(3)).errorMessage(anyString());
-        verify(client.newFailCommand(42L).retries(3).errorMessage(anyString()).send()).join(anyLong(), org.mockito.ArgumentMatchers.any());
+        verify(client.newFailCommand(42L).retries(3).errorMessage(anyString()).send())
+                .join(anyLong(), org.mockito.ArgumentMatchers.any());
         assertEquals(0, drain.inFlight());
     }
 
     @Test
     void stopGivesUpAfterTheDrainTimeout() throws Exception {
-        ZeebeWorkerDrain drain = new ZeebeWorkerDrain(Duration.ofMillis(300), Duration.ofSeconds(1));
+        ZeebeWorkerDrain drain =
+                new ZeebeWorkerDrain(Duration.ofMillis(300), Duration.ofSeconds(1));
         CountDownLatch never = new CountDownLatch(1);
         JobHandler tracked = drain.track((c, j) -> never.await());
         Thread running = new Thread(() -> run(tracked));
