@@ -87,19 +87,28 @@ public class AirtelHttpCaller {
             retryConfigs.put(endpoint, retryConfig(settings));
         }
         circuitBreakers.getEventPublisher().onEntryAdded(added -> added.getAddedEntry()
-            .getEventPublisher().onStateTransition(event -> logger.warn(
-                "event=airtel_circuit_state_changed circuit={} from={} to={}",
-                event.getCircuitBreakerName(), event.getStateTransition().getFromState(),
-                event.getStateTransition().getToState())));
+            .getEventPublisher().onStateTransition(event -> {
+                if (logger.isWarnEnabled()) {
+                    logger.warn("event=airtel_circuit_state_changed circuit={} from={} to={}",
+                        event.getCircuitBreakerName(), event.getStateTransition().getFromState(),
+                        event.getStateTransition().getToState());
+                }
+            }));
         retries.getEventPublisher().onEntryAdded(added -> added.getAddedEntry().getEventPublisher()
-            .onRetry(event -> logger.warn(
-                "event=airtel_call_retry call={} attempt={} wait_ms={} reason={}",
-                event.getName(), event.getNumberOfRetryAttempts(),
-                event.getWaitInterval().toMillis(), reason(event.getLastThrowable())))
-            .onError(event -> logger.error(
-                "event=airtel_retry_exhausted call={} attempts={} reason={}",
-                event.getName(), event.getNumberOfRetryAttempts(),
-                reason(event.getLastThrowable()))));
+            .onRetry(event -> {
+                if (logger.isWarnEnabled()) {
+                    logger.warn("event=airtel_call_retry call={} attempt={} wait_ms={} reason={}",
+                        event.getName(), event.getNumberOfRetryAttempts(),
+                        event.getWaitInterval().toMillis(), reason(event.getLastThrowable()));
+                }
+            })
+            .onError(event -> {
+                if (logger.isErrorEnabled()) {
+                    logger.error("event=airtel_retry_exhausted call={} attempts={} reason={}",
+                        event.getName(), event.getNumberOfRetryAttempts(),
+                        reason(event.getLastThrowable()));
+                }
+            }));
         meterRegistry.ifAvailable(registry -> {
             TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(circuitBreakers).bindTo(registry);
             TaggedRetryMetrics.ofRetryRegistry(retries).bindTo(registry);
@@ -144,8 +153,10 @@ public class AirtelHttpCaller {
             })).run();
             exchange.setProperty(CALL_OUTCOME, AirtelCallOutcome.RESPONDED);
         } catch (CallNotPermittedException e) {
-            logger.warn("event=airtel_call_rejected circuit={} state={}", name,
-                circuitBreaker.getState());
+            if (logger.isWarnEnabled()) {
+                logger.warn("event=airtel_call_rejected circuit={} state={}", name,
+                    circuitBreaker.getState());
+            }
             noResponse(exchange, AirtelCallOutcome.NOT_SENT, "circuit_open");
         } catch (FailedAttempt e) {
             if (e.outcome == AirtelCallOutcome.RESPONDED) {
@@ -210,8 +221,10 @@ public class AirtelHttpCaller {
      * Neither retried nor counted against the circuit.
      */
     private static FailedAttempt outOfTime(String name, FailedAttempt previous) {
-        logger.warn("event=airtel_call_skipped call={} reason=job_deadline after={}", name,
-            reason(previous));
+        if (logger.isWarnEnabled()) {
+            logger.warn("event=airtel_call_skipped call={} reason=job_deadline after={}", name,
+                reason(previous));
+        }
         if (previous == null) {
             return new FailedAttempt(AirtelCallOutcome.NOT_SENT, "job_deadline", false, false);
         }
