@@ -1,5 +1,8 @@
 # Release Notes
 
+## Version 1.2.0
+        * [FD-1935] - Retry and circuit breaker on Airtel calls
+
 ## Version 1.1.6
         * [FD-1916] - Use redis for memory
 
