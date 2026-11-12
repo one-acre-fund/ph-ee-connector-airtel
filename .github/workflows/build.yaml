@@ -150,7 +150,10 @@ jobs:
       - name: Set up Java Version
         uses: actions/setup-java@v4.7.0
         with:
-          java-version: "17"
+          # Gradle/Sonar run on 21; toolchain compiles with 17 (see build.gradle)
+          java-version: |
+            17
+            21
           distribution: "temurin"
 
       - name: Cache SonarCloud packages

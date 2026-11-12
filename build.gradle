@@ -7,7 +7,13 @@ plugins {
 }
 
 group = 'org.mifos'
-sourceCompatibility = '17'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
 version = '1.2.0'
 
 def camelCoreVersion = '3.19.0'
