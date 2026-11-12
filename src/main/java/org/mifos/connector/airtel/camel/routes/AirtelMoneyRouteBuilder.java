@@ -87,15 +87,16 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .to("direct:get-access-token")
             .choice()
                 .when(exchangeProperty(ERROR_INFORMATION).isNull())
-                    .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
-                        accessTokenStore.getAccessToken(airtelUtils.getCountryFromExchange(exchange)).getToken()))
+                    .process(exchange -> exchange.setProperty(ACCESS_TOKEN, accessTokenStore
+                        .getAccessToken(airtelUtils.getCountryFromExchange(exchange)).getToken()))
                     .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
                     .to("direct:collection-request")
                     .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")
                     .log(LoggingLevel.INFO, "Collection request API response: ${body}")
                     .to("direct:collection-response-handler")
                 .otherwise()
-                    .log(LoggingLevel.ERROR, "Access token acquisition failed. Halting collection request flow.")
+                    .log(LoggingLevel.ERROR,
+                        "Access token acquisition failed. Halting collection request flow.")
                     .process(exchange -> exchange.setProperty(TRANSACTION_FAILED, true))
             .end();
 
@@ -118,7 +119,8 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             })
             .marshal().json(JsonLibrary.Jackson)
             .process(exchange -> exchange.setProperty("baseUrl",
-                airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange)).getBaseUrl()))
+                airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange))
+                    .getBaseUrl()))
             .process(airtelHttpCaller.call(AirtelEndpoint.COLLECTION,
                 simple("${exchangeProperty.baseUrl}" + airtelProps.getApi().getCollectionEndpoint()
                     + "?bridgeEndpoint=true&throwExceptionOnFailure=false")))
@@ -173,12 +175,13 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
                 .id("get-transaction-status-base")
                 .log(LoggingLevel.INFO, "Starting Airtel transaction status flow")
                 .choice()
-                .when(exchangeProperty(SERVER_TRANSACTION_STATUS_RETRY_COUNT).isLessThanOrEqualTo(airtelProps.getMaxRetryCount()))
+                .when(exchangeProperty(SERVER_TRANSACTION_STATUS_RETRY_COUNT)
+                    .isLessThanOrEqualTo(airtelProps.getMaxRetryCount()))
                 .to("direct:get-access-token")
                 .choice()
                 .when(exchangeProperty(ERROR_INFORMATION).isNull())
-                .process(exchange -> exchange.setProperty(ACCESS_TOKEN,
-                        accessTokenStore.getAccessToken(airtelUtils.getCountryFromExchange(exchange)).getToken()))
+                .process(exchange -> exchange.setProperty(ACCESS_TOKEN, accessTokenStore
+                        .getAccessToken(airtelUtils.getCountryFromExchange(exchange)).getToken()))
                 .log(LoggingLevel.INFO, "Got access token, moving on to API call.")
                 .to("direct:airtel-transaction-status")
                 .log(LoggingLevel.INFO, "Status: ${header.CamelHttpResponseCode}")
@@ -191,14 +194,14 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
                 .process(collectionResponseProcessor)
                 .endChoice()
                 .otherwise()
-                .log(LoggingLevel.ERROR, "Max retry count exceeded for transaction status. Marking transaction as " +
-                        "failed.")
+                .log(LoggingLevel.ERROR, "Max retry count exceeded for transaction status. "
+                        + "Marking transaction as failed.")
                 .process(exchange -> {
                     exchange.setProperty(IS_RETRY_EXCEEDED, true);
                     exchange.setProperty(TRANSACTION_FAILED, true);
                     exchange.setProperty(ERROR_CODE, "RETRY_EXCEEDED");
-                    exchange.setProperty(ERROR_DESCRIPTION, "Max retry count exceeded while fetching transaction " +
-                            "status");
+                    exchange.setProperty(ERROR_DESCRIPTION,
+                            "Max retry count exceeded while fetching transaction status");
                 })
                 .process(collectionResponseProcessor)
                 .end();
@@ -214,7 +217,8 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .setHeader("X-Currency", simple("${exchangeProperty.currency}"))
             .setHeader("Authorization", simple("Bearer ${exchangeProperty." + ACCESS_TOKEN + "}"))
             .process(exchange -> exchange.setProperty("baseUrl",
-                airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange)).getBaseUrl()))
+                airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange))
+                    .getBaseUrl()))
             .process(airtelHttpCaller.call(AirtelEndpoint.TRANSACTION_STATUS,
                 simple("${exchangeProperty.baseUrl}" + airtelProps.getApi().getStatusEndpoint()
                     + "/${exchangeProperty." + COLLECTION_TRANSACTION_ID + "}"

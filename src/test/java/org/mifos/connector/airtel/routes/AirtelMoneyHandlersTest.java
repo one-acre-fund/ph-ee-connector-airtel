@@ -12,10 +12,10 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_CODE;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_DESCRIPTION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.SERVER_TRANSACTION_STATUS_RETRY_COUNT;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TIMER;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ZEEBE_ELEMENT_INSTANCE_KEY;
-import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TIMER;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
@@ -146,7 +146,8 @@ class AirtelMoneyHandlersTest extends CamelRouteTestSupport {
     @Test
     @DisplayName("collection-response-handler marks success on HTTP 200 with success=true")
     void collectionResponseHandler_success() {
-        Exchange exchange = sendHandler("collection-response-handler", SUCCESS_COLLECTION_BODY, 200);
+        Exchange exchange = sendHandler("collection-response-handler", SUCCESS_COLLECTION_BODY,
+                200);
         assertFalse((Boolean) exchange.getProperty(TRANSACTION_FAILED));
     }
 

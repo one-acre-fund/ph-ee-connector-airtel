@@ -3,6 +3,7 @@ package org.mifos.connector.airtel.camel.routes;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
@@ -16,8 +17,6 @@ import org.mifos.connector.airtel.util.AirtelUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-
-import java.time.ZoneId;
 
 /**
  * Route handlers for authentication.
@@ -55,8 +54,8 @@ public class AuthRouteBuilder extends RouteBuilder {
         from("direct:get-access-token")
             .id("get-access-token")
             .choice()
-            .when(exchange -> accessTokenStore.isValid(
-                airtelUtils.getCountryFromExchange(exchange), LocalDateTime.now(ZoneId.systemDefault())))
+            .when(exchange -> accessTokenStore.isValid(airtelUtils.getCountryFromExchange(exchange),
+                LocalDateTime.now(ZoneId.systemDefault())))
             .log("Access token valid. Continuing.")
             .otherwise()
             .log("Access token expired or not present")
@@ -100,13 +99,16 @@ public class AuthRouteBuilder extends RouteBuilder {
                 AuthResponseDto response = exchange.getIn().getBody(AuthResponseDto.class);
                 String country = airtelUtils.getCountryFromExchange(exchange);
                 if (response.expiresIn() <= 0) {
-                    accessTokenStore.setAccessToken(country, response.accessToken(), response.expiresIn());
-                    String message = "Access token has non-positive expiry: " + response.expiresIn();
+                    accessTokenStore.setAccessToken(country, response.accessToken(),
+                        response.expiresIn());
+                    String message = "Access token has non-positive expiry: "
+                        + response.expiresIn();
                     logger.error(message);
                     exchange.setProperty(ERROR_INFORMATION, message);
                     return;
                 }
-                accessTokenStore.setAccessToken(country, response.accessToken(), response.expiresIn());
+                accessTokenStore.setAccessToken(country, response.accessToken(),
+                    response.expiresIn());
                 logger.info("Saved Access Token");
             });
 
