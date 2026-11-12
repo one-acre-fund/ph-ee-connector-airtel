@@ -108,6 +108,70 @@ steps below:
 - Check the logs in the **airtel-connector** container to see that the tasks got executed
   successfully
 
+## Calls to Airtel: timeouts, retries and circuit breaker
+
+Every call to Airtel (token, collection, transaction status) has its own timeouts, retries and
+circuit breaker, one per country, endpoint and host (for example
+`airtel-rwanda-collection-openapi.airtel.co.rw`).
+
+**Retries** are bounded, with exponential backoff and jitter. A call is retried when:
+
+- the connection fails (the request never reached Airtel);
+- Airtel answers with a status in `retry-status-codes`;
+- no response comes back (read timeout), if `retry-when-outcome-unknown` is true.
+
+**A collection is only retried when it never reached Airtel**, so a retry cannot prompt the
+customer twice. When it was sent but no response came back, Airtel may still prompt the customer,
+so the payment is not failed: the callback or the status check decides. A status check that gets no answer, or a 5xx,
+keeps the payment pending until `airtel.max-retry-count` is reached.
+
+**Retries stay within the Zeebe job.** An attempt (first call or retry) is only made if it can
+finish, at its connect and read timeouts, `job-deadline-margin` (10s) before the job's deadline.
+Otherwise the call ends with the previous attempt's result, or as not sent when no attempt was
+made. A job therefore never times out while a call is running, so Zeebe cannot hand it to another
+worker that would call Airtel again.
+
+**Circuit breaker.** When `failure-rate-threshold` percent of the last `sliding-window-size` calls
+fail (connection failures, timeouts, 5xx; 4xx do not count), the circuit opens and calls fail at
+once without reaching Airtel: a collection is failed with `CIRCUIT_OPEN`, a status check stays
+pending. After `wait-duration-in-open-state`, `permitted-calls-in-half-open-state` probe calls are
+let through; if they succeed the circuit closes, otherwise it opens again.
+
+**Defaults** (`airtel.resilience.<endpoint>` in `application.yml`; `<endpoint>` is `token`,
+`collection` or `transaction-status`):
+
+| Setting | token | collection | transaction-status |
+|---|---|---|---|
+| `connect-timeout` | 5s | 5s | 5s |
+| `read-timeout` | `airtel.timeout` (6s) | `airtel.timeout` (6s) | `airtel.timeout` (6s) |
+| `retry.max-attempts` (including the first call) | 3 | 3 | 3 |
+| `retry.initial-backoff` / `backoff-multiplier` / `jitter` | 500ms / 2.0 / 0.5 | 500ms / 2.0 / 0.5 | 500ms / 2.0 / 0.5 |
+| `retry.retry-status-codes` | 500,502,503,504 | none | 500,502,503,504 |
+| `retry.retry-when-outcome-unknown` | true | false | true |
+| `circuit-breaker.failure-rate-threshold` (%) | 50 | 50 | 50 |
+| `circuit-breaker.sliding-window-size` / `minimum-number-of-calls` | 20 / 10 | 20 / 10 | 20 / 10 |
+| `circuit-breaker.wait-duration-in-open-state` | 30s | 30s | 30s |
+| `circuit-breaker.permitted-calls-in-half-open-state` | 3 | 3 | 3 |
+
+Override any value with an environment variable, for example
+`AIRTEL_RESILIENCE_COLLECTION_READTIMEOUT=20s`, `AIRTEL_RESILIENCE_TOKEN_RETRY_MAXATTEMPTS=2` or
+`AIRTEL_RESILIENCE_TRANSACTIONSTATUS_CIRCUITBREAKER_WAITDURATIONINOPENSTATE=1m`.
+
+**Monitoring.**
+
+- Metrics on `/actuator/prometheus`: `resilience4j_circuitbreaker_state{name,state}`,
+  `resilience4j_circuitbreaker_calls_seconds_*{name,kind}` and
+  `resilience4j_retry_calls_total{name,kind}` (`kind="failed_with_retry"` counts calls that failed
+  after all retries).
+- Log events, for alerting:
+  - `event=airtel_circuit_state_changed circuit=<name> from=<state> to=<state>`
+  - `event=airtel_call_rejected circuit=<name>` (failed fast while open)
+  - `event=airtel_call_retry call=<name> attempt=<n> wait_ms=<ms> reason=<reason>`
+  - `event=airtel_retry_exhausted call=<name> attempts=<n> reason=<reason>`
+  - `event=airtel_call_skipped call=<name> reason=job_deadline after=<reason>` (no time left
+    before the job deadline)
+- Reasons name the status code or exception class only, never URLs, headers or bodies.
+
 ## Troubleshooting
 
 If an error occurs while carrying out any of the steps above, check if the zeebe container is in a

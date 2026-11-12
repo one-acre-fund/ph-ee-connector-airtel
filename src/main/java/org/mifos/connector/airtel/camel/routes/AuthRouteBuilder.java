@@ -9,9 +9,10 @@ import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.dataformat.JsonLibrary;
 import org.mifos.connector.airtel.dto.AirtelProps;
 import org.mifos.connector.airtel.dto.AuthResponseDto;
+import org.mifos.connector.airtel.resilience.AirtelEndpoint;
+import org.mifos.connector.airtel.resilience.AirtelHttpCaller;
 import org.mifos.connector.airtel.store.AccessTokenStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
-import org.mifos.connector.airtel.util.ConnectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -27,12 +28,22 @@ public class AuthRouteBuilder extends RouteBuilder {
     private final AccessTokenStore accessTokenStore;
     private final AirtelProps airtelProps;
     private final AirtelUtils airtelUtils;
+    private final AirtelHttpCaller airtelHttpCaller;
 
+    /**
+     * Creates an instance of {@link AuthRouteBuilder} with all required params.
+     *
+     * @param accessTokenStore {@link AccessTokenStore}
+     * @param airtelProps      {@link AirtelProps}
+     * @param airtelUtils      {@link AirtelUtils}
+     * @param airtelHttpCaller {@link AirtelHttpCaller}
+     */
     public AuthRouteBuilder(AccessTokenStore accessTokenStore, AirtelProps airtelProps,
-                            AirtelUtils airtelUtils) {
+                            AirtelUtils airtelUtils, AirtelHttpCaller airtelHttpCaller) {
         this.accessTokenStore = accessTokenStore;
         this.airtelProps = airtelProps;
         this.airtelUtils = airtelUtils;
+        this.airtelHttpCaller = airtelHttpCaller;
     }
 
     @Override
@@ -74,9 +85,10 @@ public class AuthRouteBuilder extends RouteBuilder {
                 exchange.getIn().setBody(credentials);
             })
             .marshal().json(JsonLibrary.Jackson)
-            .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getAuthEndpoint()
-                + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
-                + ConnectionUtils.getConnectionTimeoutDsl(airtelProps.getTimeout()));
+            .process(airtelHttpCaller.call(AirtelEndpoint.TOKEN,
+                simple("${exchangeProperty.baseUrl}" + airtelProps.getApi().getAuthEndpoint()
+                    + "?bridgeEndpoint=true&throwExceptionOnFailure=false")))
+            .id("access-token-call");
 
         /*
           Saves Access Token to AccessTokenStore
@@ -105,6 +117,10 @@ public class AuthRouteBuilder extends RouteBuilder {
             .id("access-token-error")
             .process(exchange -> {
                 String body = exchange.getIn().getBody(String.class);
+                if (body == null) {
+                    body = "Access token fetch failed: "
+                        + exchange.getProperty(AirtelHttpCaller.CALL_FAILURE);
+                }
                 logger.error(body);
                 exchange.setProperty(ERROR_INFORMATION, body);
             });

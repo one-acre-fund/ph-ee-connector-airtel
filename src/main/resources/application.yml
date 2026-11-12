@@ -55,7 +55,59 @@ airtel:
       client-secret: "xyz"
       grant-type: "client_credentials"
   max-retry-count: 3
+  # Read timeout of each Airtel call, in ms
   timeout: 6000
+  resilience:
+    job-deadline-margin: 10s
+    token:
+      connect-timeout: 5s
+      read-timeout: ${airtel.timeout}ms
+      retry:
+        max-attempts: 3
+        initial-backoff: 500ms
+        backoff-multiplier: 2.0
+        jitter: 0.5
+        retry-status-codes: 500,502,503,504
+        retry-when-outcome-unknown: true
+      circuit-breaker:
+        failure-rate-threshold: 50
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 30s
+        permitted-calls-in-half-open-state: 3
+    # Not known to be deduplicated by Airtel: only a request that never reached Airtel is retried
+    collection:
+      connect-timeout: 5s
+      read-timeout: ${airtel.timeout}ms
+      retry:
+        max-attempts: 3
+        initial-backoff: 500ms
+        backoff-multiplier: 2.0
+        jitter: 0.5
+        retry-status-codes:
+        retry-when-outcome-unknown: false
+      circuit-breaker:
+        failure-rate-threshold: 50
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 30s
+        permitted-calls-in-half-open-state: 3
+    transaction-status:
+      connect-timeout: 5s
+      read-timeout: ${airtel.timeout}ms
+      retry:
+        max-attempts: 3
+        initial-backoff: 500ms
+        backoff-multiplier: 2.0
+        jitter: 0.5
+        retry-status-codes: 500,502,503,504
+        retry-when-outcome-unknown: true
+      circuit-breaker:
+        failure-rate-threshold: 50
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 30s
+        permitted-calls-in-half-open-state: 3
 
 countryCodes: '{"rwf": "RW", "ugx": "UG", "kes": "KE", "mwk": "MW", "zmw": "ZM", "zmk": "ZM"}'
 

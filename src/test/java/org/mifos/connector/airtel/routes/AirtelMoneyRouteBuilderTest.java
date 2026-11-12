@@ -9,6 +9,7 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION
 import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_TRANSACTION_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_RETRY_EXCEEDED;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_TRANSACTION_PENDING;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.SERVER_TRANSACTION_STATUS_RETRY_COUNT;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED;
@@ -152,7 +153,10 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
         mockStatus.assertIsSatisfied();
         mockStatusHandler.assertIsSatisfied();
         assertNull(failureExchange.getProperty(ACCESS_TOKEN), "Access token must not be set when ERROR_INFORMATION is present");
-        assertTrue((Boolean) failureExchange.getProperty(TRANSACTION_FAILED), "Transaction failed should be true on failure status path");
+        assertTrue((Boolean) failureExchange.getProperty(IS_TRANSACTION_PENDING),
+            "Status should be checked again later when no access token could be obtained");
+        assertNull(failureExchange.getProperty(TRANSACTION_FAILED),
+            "Transaction must not be failed because Airtel could not be reached");
         assertNull(failureExchange.getProperty(IS_RETRY_EXCEEDED),
             "Retry exceeded should not be set when access token acquisition fails");
     }
@@ -163,10 +167,7 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
         RouteDefinition route = findRouteByInputUri("direct:collection-request");
         camelContext.getRouteController().stopRoute(route.getId());
         AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
-            a.interceptSendToEndpoint("https://*")
-                .skipSendToOriginalEndpoint()
-                .to("mock:collection-https-sink")
-        );
+            a.weaveById("collection-call").replace().to("mock:collection-https-sink"));
         camelContext.getRouteController().startRoute(route.getId());
 
         MockEndpoint mockSink = camelContext.getEndpoint("mock:collection-https-sink", MockEndpoint.class);
@@ -177,6 +178,7 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
         exchange.setProperty(ACCESS_TOKEN, "test-token");
         exchange.setProperty(COLLECTION_REQUEST_BODY, buildCollectionRequest());
         producerTemplate.send("direct:collection-request", exchange);
+        mockSink.assertIsSatisfied();
         assertEquals("https://openapiuat.airtel.co.rw", exchange.getProperty("baseUrl"),
                 "baseUrl should resolve to the rwanda base URL when PLATFORM_TENANT_ID=rwanda");
     }
@@ -187,10 +189,7 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
         RouteDefinition route = findRouteByInputUri("direct:airtel-transaction-status");
         camelContext.getRouteController().stopRoute(route.getId());
         AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
-            a.interceptSendToEndpoint("https://*")
-                .skipSendToOriginalEndpoint()
-                .to("mock:status-https-sink")
-        );
+            a.weaveById("transaction-status-call").replace().to("mock:status-https-sink"));
         camelContext.getRouteController().startRoute(route.getId());
 
         MockEndpoint mockSink = camelContext.getEndpoint("mock:status-https-sink", MockEndpoint.class);
@@ -202,6 +201,7 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
         exchange.setProperty("country", "ZM");
         exchange.setProperty("currency", "ZMW");
         producerTemplate.send("direct:airtel-transaction-status", exchange);
+        mockSink.assertIsSatisfied();
         assertEquals("https://openapiuat.airtel.co.zm", exchange.getProperty("baseUrl"),
                 "baseUrl should resolve to the zambia base URL when PLATFORM_TENANT_ID=zambia");
     }

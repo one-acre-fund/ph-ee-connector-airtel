@@ -4,6 +4,7 @@ import static org.mifos.connector.airtel.camel.config.CamelProperties.ACCESS_TOK
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_REQUEST_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_RESPONSE_BODY;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_TRANSACTION_ID;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.CORRELATION_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_RETRY_EXCEEDED;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_TRANSACTION_PENDING;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.LAST_RESPONSE_BODY;
@@ -26,9 +27,11 @@ import org.mifos.connector.airtel.dto.AirtelProps;
 import org.mifos.connector.airtel.dto.CallbackDto;
 import org.mifos.connector.airtel.dto.CollectionRequestDto;
 import org.mifos.connector.airtel.dto.CollectionResponseDto;
+import org.mifos.connector.airtel.resilience.AirtelCallOutcome;
+import org.mifos.connector.airtel.resilience.AirtelEndpoint;
+import org.mifos.connector.airtel.resilience.AirtelHttpCaller;
 import org.mifos.connector.airtel.store.AccessTokenStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
-import org.mifos.connector.airtel.util.ConnectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +47,7 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
     private final AirtelProps airtelProps;
     private final CollectionResponseProcessor collectionResponseProcessor;
     private final AirtelUtils airtelUtils;
+    private final AirtelHttpCaller airtelHttpCaller;
     @Value("${transaction-id-prefix}")
     private String transactionIdPrefix;
 
@@ -53,14 +57,17 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
      * @param accessTokenStore            {@link AccessTokenStore}
      * @param airtelProps                 {@link AirtelProps}
      * @param collectionResponseProcessor {@link CollectionResponseProcessor}
+     * @param airtelUtils                 {@link AirtelUtils}
+     * @param airtelHttpCaller            {@link AirtelHttpCaller}
      */
     public AirtelMoneyRouteBuilder(AccessTokenStore accessTokenStore, AirtelProps airtelProps,
                                    CollectionResponseProcessor collectionResponseProcessor,
-                                   AirtelUtils airtelUtils) {
+                                   AirtelUtils airtelUtils, AirtelHttpCaller airtelHttpCaller) {
         this.accessTokenStore = accessTokenStore;
         this.airtelProps = airtelProps;
         this.collectionResponseProcessor = collectionResponseProcessor;
         this.airtelUtils = airtelUtils;
+        this.airtelHttpCaller = airtelHttpCaller;
     }
 
     @Override
@@ -112,19 +119,33 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .marshal().json(JsonLibrary.Jackson)
             .process(exchange -> exchange.setProperty("baseUrl",
                 airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange)).getBaseUrl()))
-            .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getCollectionEndpoint()
-                + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
-                + ConnectionUtils.getConnectionTimeoutDsl(airtelProps.getTimeout()))
+            .process(airtelHttpCaller.call(AirtelEndpoint.COLLECTION,
+                simple("${exchangeProperty.baseUrl}" + airtelProps.getApi().getCollectionEndpoint()
+                    + "?bridgeEndpoint=true&throwExceptionOnFailure=false")))
+            .id("collection-call")
             .process(exchange -> exchange.setProperty(COLLECTION_RESPONSE_BODY,
                 exchange.getIn().getBody(String.class)))
             .log(LoggingLevel.INFO, "Airtel collection API called, response: \n\n ${body}");
 
         /*
-         * Route to handle Airtel collection API responses
+         * Route to handle Airtel collection API responses. When the request was sent but no
+         * response came back, Airtel may hold it and prompt the customer, so it is treated as
+         * accepted and resolved by the callback or the status check. Sending it again could charge
+         * the customer twice.
          */
         from("direct:collection-response-handler")
             .id("collection-response-handler")
             .choice()
+            .when(exchange -> outcome(exchange) == AirtelCallOutcome.UNKNOWN)
+            .process(exchange -> {
+                logger.warn("Airtel collection outcome unknown for {} ({}); "
+                        + "resolving it by status check",
+                    exchange.getProperty(CORRELATION_ID),
+                    exchange.getProperty(AirtelHttpCaller.CALL_FAILURE));
+                exchange.setProperty(TRANSACTION_FAILED, false);
+            })
+            .when(exchange -> outcome(exchange) == AirtelCallOutcome.NOT_SENT)
+            .process(exchange -> setErrorDataForRequestNotSent(exchange, "Collection"))
             .when(header(Exchange.HTTP_RESPONSE_CODE).isEqualTo("200"))
             .unmarshal().json(CollectionResponseDto.class)
             .process(exchange -> {
@@ -164,10 +185,9 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
                 .log(LoggingLevel.INFO, "Transaction status API response: ${body}")
                 .to("direct:transaction-status-response-handler")
                 .otherwise()
-                .log(LoggingLevel.ERROR, "Access token acquisition failed. Halting transaction status flow.")
-                .process(exchange -> {
-                    exchange.setProperty(TRANSACTION_FAILED, true);
-                })
+                .log(LoggingLevel.WARN, "Access token acquisition failed. Checking the "
+                    + "transaction status again later.")
+                .setProperty(IS_TRANSACTION_PENDING, constant(true))
                 .process(collectionResponseProcessor)
                 .endChoice()
                 .otherwise()
@@ -195,21 +215,34 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .setHeader("Authorization", simple("Bearer ${exchangeProperty." + ACCESS_TOKEN + "}"))
             .process(exchange -> exchange.setProperty("baseUrl",
                 airtelProps.getCredentials(airtelUtils.getCountryFromExchange(exchange)).getBaseUrl()))
-            .toD("${exchangeProperty.baseUrl}" + airtelProps.getApi().getStatusEndpoint()
-                + "/${exchangeProperty." + COLLECTION_TRANSACTION_ID + "}"
-                + "?bridgeEndpoint=true&throwExceptionOnFailure=false&"
-                + ConnectionUtils.getConnectionTimeoutDsl(airtelProps.getTimeout()))
+            .process(airtelHttpCaller.call(AirtelEndpoint.TRANSACTION_STATUS,
+                simple("${exchangeProperty.baseUrl}" + airtelProps.getApi().getStatusEndpoint()
+                    + "/${exchangeProperty." + COLLECTION_TRANSACTION_ID + "}"
+                    + "?bridgeEndpoint=true&throwExceptionOnFailure=false")))
+            .id("transaction-status-call")
             .log(LoggingLevel.INFO, "Airtel Transaction status API called for id:"
                 + " ${exchangeProperty." + COLLECTION_TRANSACTION_ID + "}, response: \n\n ${body}");
 
         /*
-         * Route to process the transaction status response received from Airtel
+         * Route to process the transaction status response received from Airtel. When Airtel could
+         * not be reached or answered with a server error, the status is unknown and checked again
+         * later, up to the maximum retry count.
          */
         from("direct:transaction-status-response-handler")
             .id("transaction-status-response-handler")
-            .unmarshal().json(CollectionResponseDto.class)
             .choice()
+            .when(AirtelMoneyRouteBuilder::statusUnknown)
+            .process(exchange -> {
+                logger.warn("Airtel transaction status unknown for {}: status={} failure={}; "
+                        + "checking again later",
+                    exchange.getProperty(TRANSACTION_ID),
+                    exchange.getIn().getHeader(Exchange.HTTP_RESPONSE_CODE),
+                    exchange.getProperty(AirtelHttpCaller.CALL_FAILURE));
+                exchange.setProperty(IS_TRANSACTION_PENDING, true);
+            })
+            .process(collectionResponseProcessor)
             .when(header(Exchange.HTTP_RESPONSE_CODE).isEqualTo("200"))
+            .unmarshal().json(CollectionResponseDto.class)
             .process(exchange -> {
                 CollectionResponseDto response = exchange.getIn()
                     .getBody(CollectionResponseDto.class);
@@ -285,6 +318,40 @@ public class AirtelMoneyRouteBuilder extends RouteBuilder {
             .otherwise()
             .log("Transaction is in intermediate state. "
                 + "Hence, an attempt will be made to get transaction status later");
+    }
+
+    private static AirtelCallOutcome outcome(Exchange exchange) {
+        return exchange.getProperty(AirtelHttpCaller.CALL_OUTCOME, AirtelCallOutcome.class);
+    }
+
+    private static boolean statusUnknown(Exchange exchange) {
+        if (!AirtelHttpCaller.responded(exchange)) {
+            return true;
+        }
+        Integer status = exchange.getIn().getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class);
+        return status != null && status >= 500;
+    }
+
+    /**
+     * Adds error data to the exchange when the request never reached Airtel.
+     *
+     * @param exchange {@link Exchange}
+     * @param resource the API resource
+     */
+    private void setErrorDataForRequestNotSent(Exchange exchange, String resource) {
+        String reason = exchange.getProperty(AirtelHttpCaller.CALL_FAILURE, String.class);
+        exchange.setProperty(TRANSACTION_FAILED, true);
+        exchange.setProperty(ERROR_CODE, notSentErrorCode(reason));
+        exchange.setProperty(ERROR_DESCRIPTION,
+            resource + " request not sent to Airtel: " + reason);
+        exchange.setProperty(ERROR_INFORMATION, reason);
+    }
+
+    private static String notSentErrorCode(String reason) {
+        if ("circuit_open".equals(reason)) {
+            return "CIRCUIT_OPEN";
+        }
+        return "job_deadline".equals(reason) ? "JOB_DEADLINE" : "CONNECTION_ERROR";
     }
 
     /**

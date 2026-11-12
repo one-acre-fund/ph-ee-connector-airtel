@@ -12,6 +12,7 @@ version = '1.1.6'
 
 def camelCoreVersion = '3.19.0'
 def phConnectorCommonVersion = '1.5.1-gazelle'
+def resilience4jVersion = '2.2.0'
 
 repositories {
 	mavenCentral()
@@ -38,9 +39,14 @@ dependencies {
 	implementation 'org.json:json:20220924'
 	implementation "org.mifos:ph-ee-connector-common:${phConnectorCommonVersion}"
 	implementation "org.apache.camel:camel-bean-validator:${camelCoreVersion}"
+	implementation "io.github.resilience4j:resilience4j-circuitbreaker:${resilience4jVersion}"
+	implementation "io.github.resilience4j:resilience4j-retry:${resilience4jVersion}"
+	implementation "io.github.resilience4j:resilience4j-micrometer:${resilience4jVersion}"
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation "org.apache.camel:camel-test-spring-junit5:${camelCoreVersion}"
 	testImplementation "org.apache.camel:camel-mock:${camelCoreVersion}"
+	testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.2'
+	testImplementation 'org.awaitility:awaitility'
 }
 
 tasks.named('test') {

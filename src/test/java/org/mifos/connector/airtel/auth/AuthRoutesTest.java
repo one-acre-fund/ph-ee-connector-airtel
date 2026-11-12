@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mifos.connector.airtel.CamelRouteTestSupport;
+import org.mifos.connector.airtel.resilience.AirtelHttpCaller;
 import org.mifos.connector.airtel.store.AccessTokenStore;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -83,6 +84,17 @@ class AuthRoutesTest extends CamelRouteTestSupport {
                 .withHeader("Test-Header", "HeaderValue").send());
     }
 
+    @DisplayName("Access token error without a response body names the failure")
+    @Test
+    void testAccessTokenErrorWithoutResponse() {
+        Exchange exchange = camelContext.getEndpoint("direct:access-token-error").createExchange();
+        exchange.setProperty(AirtelHttpCaller.CALL_FAILURE, "circuit_open");
+        producerTemplate.send("direct:access-token-error", exchange);
+
+        assertEquals("Access token fetch failed: circuit_open",
+                exchange.getProperty(ERROR_INFORMATION));
+    }
+
     @DisplayName("Test Access Token Fetch Route")
     @Test
     void testAccessTokenFetchRoute() {
@@ -109,10 +121,7 @@ class AuthRoutesTest extends CamelRouteTestSupport {
     void testAccessTokenFetchResolvesCountryBaseUrl() throws Exception {
         camelContext.getRouteController().stopRoute("access-token-fetch");
         AdviceWithRouteBuilder.adviceWith(camelContext, "access-token-fetch", a ->
-            a.interceptSendToEndpoint("https://*")
-                .skipSendToOriginalEndpoint()
-                .to("mock:auth-https-sink")
-        );
+            a.weaveById("access-token-call").replace().to("mock:auth-https-sink"));
         camelContext.getRouteController().startRoute("access-token-fetch");
 
         MockEndpoint mockSink = camelContext.getEndpoint("mock:auth-https-sink", MockEndpoint.class);
@@ -121,6 +130,7 @@ class AuthRoutesTest extends CamelRouteTestSupport {
         Exchange exchange = camelContext.getEndpoint("direct:access-token-fetch").createExchange();
         exchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
         producerTemplate.send("direct:access-token-fetch", exchange);
+        mockSink.assertIsSatisfied();
         assertEquals("https://openapiuat.airtel.co.rw", exchange.getProperty("baseUrl"),
                 "baseUrl should resolve to the rwanda base URL when PLATFORM_TENANT_ID=rwanda");
     }
