@@ -33,6 +33,7 @@ import org.apache.camel.ProducerTemplate;
 import org.apache.camel.support.DefaultExchange;
 import org.json.JSONObject;
 import org.mifos.connector.airtel.dto.CollectionRequestDto;
+import org.mifos.connector.airtel.resilience.AirtelHttpCaller;
 import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
 import org.slf4j.Logger;
@@ -130,6 +131,7 @@ public class ZeebeWorkers {
                         .getCurrency());
                     exchange.setProperty(PLATFORM_TENANT_ID, airtelUtils.getCountryFromCurrency(
                             collectionRequestDto.getTransaction().getCurrency()));
+                    exchange.setProperty(AirtelHttpCaller.JOB_DEADLINE, job.getDeadline());
 
                     variables.put(COLLECTION_REQUEST_BODY, collectionRequestDto.toString());
 
@@ -207,6 +209,7 @@ public class ZeebeWorkers {
                         .getCurrency());
                     exchange.setProperty(PLATFORM_TENANT_ID, airtelUtils.getCountryFromCurrency(
                             collectionRequestDto.getTransaction().getCurrency()));
+                    exchange.setProperty(AirtelHttpCaller.JOB_DEADLINE, job.getDeadline());
                     producerTemplate.send("direct:get-transaction-status-base", exchange);
                 }
                 client.newCompleteCommand(job.getKey())

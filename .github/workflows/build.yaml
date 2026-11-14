@@ -35,106 +35,106 @@ jobs:
     outputs:
       PH_EE_CONNECTOR_TNM_IMAGE_TAG: ${{ steps.set-image-tag.outputs.IMAGE_TAG }}
     steps:
-    - name: Check out source code
-      uses: actions/checkout@v4.2.2
-      with:
-        fetch-depth: 0
-        fetch-tags: true
+      - name: Check out source code
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
-    - name: Set up Java Version
-      uses: actions/setup-java@v4.7.0
-      with:
-        java-version: "17"
-        distribution: "temurin"
-        
-    - name: Get Revision
-      run: echo "REVISION=$(git rev-parse HEAD)" >> $GITHUB_ENV
+      - name: Set up Java Version
+        uses: actions/setup-java@v4.7.0
+        with:
+          java-version: "17"
+          distribution: "temurin"
 
-    - name: Get Revision and Set Image Tag
-      id: set-image-tag
-      run: |
-        VERSION_TAG=$(./gradlew -q printVersion)
-        echo "VERSION_TAG=$VERSION_TAG"
-        
-        IMAGE_TAG="${VERSION_TAG}.$(date '+%Y.%m.%d').${{ github.run_number }}"
-        if [[ "${{ env.SHOULD_PUBLISH }}" == 'true' ]]; then
-          IMAGE_TAG="$VERSION_TAG"
-        fi
-        echo "IMAGE_SEMANTIC_HASH=$IMAGE_TAG"
-        echo "Tags: $IMAGE_TAG"
+      - name: Get Revision
+        run: echo "REVISION=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
-        echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_OUTPUT
-        echo "IMAGE_SEMANTIC_HASH=$IMAGE_TAG" >> $GITHUB_OUTPUT
-        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-        echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_OUTPUT
+      - name: Get Revision and Set Image Tag
+        id: set-image-tag
+        run: |
+          VERSION_TAG=$(./gradlew -q printVersion)
+          echo "VERSION_TAG=$VERSION_TAG"
 
-    - name: Configure Gradle caching
-      uses: actions/cache@v4.2.4
-      with:
-        path: ~/.gradle/caches
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-        restore-keys: ${{ runner.os }}-gradle
+          IMAGE_TAG="${VERSION_TAG}.$(date '+%Y.%m.%d').${{ github.run_number }}"
+          if [[ "${{ env.SHOULD_PUBLISH }}" == 'true' ]]; then
+            IMAGE_TAG="$VERSION_TAG"
+          fi
+          echo "IMAGE_SEMANTIC_HASH=$IMAGE_TAG"
+          echo "Tags: $IMAGE_TAG"
 
-    - name: Gradlew build
-      run: |
-        ./gradlew bootJar --info --build-cache
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_OUTPUT
+          echo "IMAGE_SEMANTIC_HASH=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_OUTPUT
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
-      with:
-        role-to-assume: ${{ vars.ECR_REGISTRY_ROLE }}
-        aws-region: ${{ vars.AWS_REGION }}
+      - name: Configure Gradle caching
+        uses: actions/cache@v4.2.4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          restore-keys: ${{ runner.os }}-gradle
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
-      uses: aws-actions/amazon-ecr-login@v2
+      - name: Gradlew build
+        run: |
+          ./gradlew bootJar --info --build-cache
 
-    - name: Ensure ECR repository exists
-      if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
-      run: |
-        if aws ecr describe-repositories --repository-names "${{ env.IMAGE_REPOSITORY }}" >/dev/null 2>&1; then
-          echo "ECR repository '${{ env.IMAGE_REPOSITORY }}' already exists"
-        else
-          echo "Creating ECR repository '${{ env.IMAGE_REPOSITORY }}'..."
-          aws ecr create-repository \
-            --repository-name "${{ env.IMAGE_REPOSITORY }}" \
-            --image-scanning-configuration scanOnPush=true
-        fi
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
+        with:
+          role-to-assume: ${{ vars.ECR_REGISTRY_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-    - name: Login to Azure Container Registry
-      uses: docker/login-action@v3.5.0
-      if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'acr' }}
-      with:
-        registry: ${{ vars.ACR_REGISTRY }}
-        username: ${{ vars.ACR_PULL_USERNAME }}
-        password: ${{ secrets.ACR_PULL_PASSWORD }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
+        uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build Docker image
-      run: |
-        if [[ "${{ env.SHOULD_PUBLISH }}" != 'true' ]]; then
-          IMAGE="${{ env.IMAGE_REPOSITORY }}"
-        elif [[ "${{ env.REGISTRY_PROVIDER }}" == 'ecr' ]]; then
+      - name: Ensure ECR repository exists
+        if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
+        run: |
+          if aws ecr describe-repositories --repository-names "${{ env.IMAGE_REPOSITORY }}" >/dev/null 2>&1; then
+            echo "ECR repository '${{ env.IMAGE_REPOSITORY }}' already exists"
+          else
+            echo "Creating ECR repository '${{ env.IMAGE_REPOSITORY }}'..."
+            aws ecr create-repository \
+              --repository-name "${{ env.IMAGE_REPOSITORY }}" \
+              --image-scanning-configuration scanOnPush=true
+          fi
+
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v3.5.0
+        if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'acr' }}
+        with:
+          registry: ${{ vars.ACR_REGISTRY }}
+          username: ${{ vars.ACR_PULL_USERNAME }}
+          password: ${{ secrets.ACR_PULL_PASSWORD }}
+
+      - name: Build Docker image
+        run: |
+          if [[ "${{ env.SHOULD_PUBLISH }}" != 'true' ]]; then
+            IMAGE="${{ env.IMAGE_REPOSITORY }}"
+          elif [[ "${{ env.REGISTRY_PROVIDER }}" == 'ecr' ]]; then
+            IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_REPOSITORY }}"
+          else
+            IMAGE="${{ vars.ACR_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}"
+          fi
+          docker build . -t "${IMAGE}:${{ steps.set-image-tag.outputs.IMAGE_TAG }}"
+
+      - name: Push image to Amazon ECR
+        if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
+        run: |
           IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_REPOSITORY }}"
-        else
-          IMAGE="${{ vars.ACR_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}"
-        fi
-        docker build . -t "${IMAGE}:${{ steps.set-image-tag.outputs.IMAGE_TAG }}"
+          TAG="${{ steps.set-image-tag.outputs.IMAGE_TAG }}"
+          docker push "${IMAGE}:${TAG}"
+          docker tag "${IMAGE}:${TAG}" "${IMAGE}:latest"
+          docker push "${IMAGE}:latest"
 
-    - name: Push image to Amazon ECR
-      if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'ecr' }}
-      run: |
-        IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_REPOSITORY }}"
-        TAG="${{ steps.set-image-tag.outputs.IMAGE_TAG }}"
-        docker push "${IMAGE}:${TAG}"
-        docker tag "${IMAGE}:${TAG}" "${IMAGE}:latest"
-        docker push "${IMAGE}:latest"
-
-    - name: Push image to Azure Container Registry
-      if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'acr' }}
-      run: |
-        docker push ${{ vars.ACR_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ steps.set-image-tag.outputs.IMAGE_TAG }}
+      - name: Push image to Azure Container Registry
+        if: ${{ env.SHOULD_PUBLISH == 'true' && env.REGISTRY_PROVIDER == 'acr' }}
+        run: |
+          docker push ${{ vars.ACR_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ steps.set-image-tag.outputs.IMAGE_TAG }}
 
   Sonarcloud:
     name: Sonar Analysis
@@ -150,7 +150,10 @@ jobs:
       - name: Set up Java Version
         uses: actions/setup-java@v4.7.0
         with:
-          java-version: "21"
+          # Gradle/Sonar run on 21; toolchain compiles with 17 (see build.gradle)
+          java-version: |
+            17
+            21
           distribution: "temurin"
 
       - name: Cache SonarCloud packages

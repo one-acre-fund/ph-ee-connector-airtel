@@ -47,6 +47,7 @@ import org.apache.camel.impl.DefaultCamelContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mifos.connector.airtel.resilience.AirtelHttpCaller;
 import org.mifos.connector.airtel.store.PaybillStateStore;
 import org.mifos.connector.airtel.util.AirtelUtils;
 import org.mockito.ArgumentCaptor;
@@ -57,6 +58,8 @@ import org.springframework.test.util.ReflectionTestUtils;
  * via {@link AirtelUtils#getCountryFromCurrency(String)}.
  */
 class ZeebeWorkersTest {
+
+    private static final long JOB_DEADLINE = 1_762_950_000_000L;
 
     private ZeebeClient zeebeClient;
     private ProducerTemplate producerTemplate;
@@ -151,6 +154,7 @@ class ZeebeWorkersTest {
         verify(airtelUtils).getCountryFromCurrency("ZMW");
         Exchange sentExchange = exchangeCaptor.getValue();
         assertEquals("zambia", sentExchange.getProperty(PLATFORM_TENANT_ID));
+        assertEquals(JOB_DEADLINE, sentExchange.getProperty(AirtelHttpCaller.JOB_DEADLINE));
     }
 
     @DisplayName("get-transaction-status worker sets PLATFORM_TENANT_ID from "
@@ -178,6 +182,7 @@ class ZeebeWorkersTest {
         verify(airtelUtils).getCountryFromCurrency("ZMW");
         Exchange sentExchange = exchangeCaptor.getValue();
         assertEquals("zambia", sentExchange.getProperty(PLATFORM_TENANT_ID));
+        assertEquals(JOB_DEADLINE, sentExchange.getProperty(AirtelHttpCaller.JOB_DEADLINE));
     }
 
     @DisplayName("cleanup worker removes workflow mapping and marks transferCreateFailed")
@@ -280,6 +285,7 @@ class ZeebeWorkersTest {
         when(job.getKey()).thenReturn(123L);
         when(job.getElementInstanceKey()).thenReturn(456L);
         when(job.getType()).thenReturn("test-job-type");
+        when(job.getDeadline()).thenReturn(JOB_DEADLINE);
         return job;
     }
 

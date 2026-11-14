@@ -10,11 +10,12 @@ import static org.mifos.connector.airtel.zeebe.ZeebeVariables.AIRTEL_MONEY_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.CALLBACK_RECEIVED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_CODE;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_DESCRIPTION;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.SERVER_TRANSACTION_STATUS_RETRY_COUNT;
+import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TIMER;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ZEEBE_ELEMENT_INSTANCE_KEY;
-import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TIMER;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
@@ -23,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.mifos.connector.airtel.CamelRouteTestSupport;
 import org.mifos.connector.airtel.camel.routes.AirtelMoneyRouteBuilder;
 import org.mifos.connector.airtel.dto.CallbackDto;
+import org.mifos.connector.airtel.resilience.AirtelCallOutcome;
+import org.mifos.connector.airtel.resilience.AirtelHttpCaller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -143,7 +146,8 @@ class AirtelMoneyHandlersTest extends CamelRouteTestSupport {
     @Test
     @DisplayName("collection-response-handler marks success on HTTP 200 with success=true")
     void collectionResponseHandler_success() {
-        Exchange exchange = sendHandler("collection-response-handler", SUCCESS_COLLECTION_BODY, 200);
+        Exchange exchange = sendHandler("collection-response-handler", SUCCESS_COLLECTION_BODY,
+                200);
         assertFalse((Boolean) exchange.getProperty(TRANSACTION_FAILED));
     }
 
@@ -196,11 +200,76 @@ class AirtelMoneyHandlersTest extends CamelRouteTestSupport {
     }
 
     @Test
-    @DisplayName("transaction-status-response-handler handles non-200")
-    void statusHandler_non200() {
-        // Unmarshal runs before the choice, so body must still be valid JSON
-        Exchange exchange = sendStatusHandler("{\"status\":{\"success\":false,\"message\":\"err\",\"response_code\":\"X\"}}", 502);
+    @DisplayName("transaction-status-response-handler fails the transaction on a client error")
+    void statusHandler_clientError() {
+        Exchange exchange = sendStatusHandler("not found", 404);
         assertTrue((Boolean) exchange.getProperty(TRANSACTION_FAILED));
+        assertEquals(404, exchange.getProperty(ERROR_CODE));
+        assertEquals("not found", exchange.getProperty(ERROR_INFORMATION));
+    }
+
+    @Test
+    @DisplayName("transaction-status-response-handler keeps a transaction pending on a 5xx")
+    void statusHandler_serverError() {
+        Exchange exchange = sendStatusHandler("bad gateway", 502);
+        assertTrue((Boolean) exchange.getProperty(IS_TRANSACTION_PENDING));
+        assertNull(exchange.getProperty(TRANSACTION_FAILED));
+    }
+
+    @Test
+    @DisplayName("transaction-status-response-handler keeps a transaction pending on no response")
+    void statusHandler_noResponse() {
+        Exchange exchange = camelContext.getEndpoint("direct:transaction-status-response-handler")
+                .createExchange();
+        AirtelHttpCaller.noResponse(exchange, AirtelCallOutcome.UNKNOWN,
+                "no_response:SocketTimeoutException");
+        exchange.setProperty(TRANSACTION_ID, "status-txn");
+        exchange.setProperty(SERVER_TRANSACTION_STATUS_RETRY_COUNT, 1);
+        exchange.setProperty(ZEEBE_ELEMENT_INSTANCE_KEY, 42L);
+        exchange.setProperty(TIMER, "PT45S");
+        producerTemplate.send("direct:transaction-status-response-handler", exchange);
+
+        assertTrue((Boolean) exchange.getProperty(IS_TRANSACTION_PENDING));
+        assertNull(exchange.getProperty(TRANSACTION_FAILED));
+    }
+
+    @Test
+    @DisplayName("collection-response-handler accepts a collection whose outcome is unknown")
+    void collectionResponseHandler_outcomeUnknown() {
+        Exchange exchange = camelContext.getEndpoint("direct:collection-response-handler")
+                .createExchange();
+        AirtelHttpCaller.noResponse(exchange, AirtelCallOutcome.UNKNOWN,
+                "no_response:SocketTimeoutException");
+        producerTemplate.send("direct:collection-response-handler", exchange);
+
+        assertFalse((Boolean) exchange.getProperty(TRANSACTION_FAILED));
+    }
+
+    @Test
+    @DisplayName("collection-response-handler fails a collection that was not sent")
+    void collectionResponseHandler_notSent() {
+        Exchange exchange = camelContext.getEndpoint("direct:collection-response-handler")
+                .createExchange();
+        AirtelHttpCaller.noResponse(exchange, AirtelCallOutcome.NOT_SENT, "circuit_open");
+        producerTemplate.send("direct:collection-response-handler", exchange);
+
+        assertTrue((Boolean) exchange.getProperty(TRANSACTION_FAILED));
+        assertEquals("CIRCUIT_OPEN", exchange.getProperty(ERROR_CODE));
+        assertEquals("Collection request not sent to Airtel: circuit_open",
+                exchange.getProperty(ERROR_DESCRIPTION));
+    }
+
+    @Test
+    @DisplayName("collection-response-handler reports a connection failure")
+    void collectionResponseHandler_connectionFailure() {
+        Exchange exchange = camelContext.getEndpoint("direct:collection-response-handler")
+                .createExchange();
+        AirtelHttpCaller.noResponse(exchange, AirtelCallOutcome.NOT_SENT,
+                "not_sent:ConnectException");
+        producerTemplate.send("direct:collection-response-handler", exchange);
+
+        assertTrue((Boolean) exchange.getProperty(TRANSACTION_FAILED));
+        assertEquals("CONNECTION_ERROR", exchange.getProperty(ERROR_CODE));
     }
 
     @Test

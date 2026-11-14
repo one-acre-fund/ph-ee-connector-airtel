@@ -1,20 +1,20 @@
 package org.mifos.connector.airtel.routes;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.ACCESS_TOKEN;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_REQUEST_BODY;
-import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.COLLECTION_TRANSACTION_ID;
 import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_RETRY_EXCEEDED;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.IS_TRANSACTION_PENDING;
+import static org.mifos.connector.airtel.camel.config.CamelProperties.PLATFORM_TENANT_ID;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.ERROR_INFORMATION;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.SERVER_TRANSACTION_STATUS_RETRY_COUNT;
 import static org.mifos.connector.airtel.zeebe.ZeebeVariables.TRANSACTION_FAILED;
 
 import java.math.BigDecimal;
-
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
@@ -26,6 +26,7 @@ import org.mifos.connector.airtel.CamelRouteTestSupport;
 import org.mifos.connector.airtel.dto.CollectionRequestDto;
 import org.mifos.connector.airtel.store.AccessTokenStore;
 import org.springframework.beans.factory.annotation.Autowired;
+
 class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
 
     @Autowired
@@ -40,7 +41,6 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
     }
 
     private CollectionRequestDto buildCollectionRequest() {
-        CollectionRequestDto dto = new CollectionRequestDto();
         CollectionRequestDto.Subscriber subscriber = new CollectionRequestDto.Subscriber();
         subscriber.setCountry("rwanda");
         subscriber.setCurrency("RWF");
@@ -50,6 +50,7 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
         transaction.setCountry("rwanda");
         transaction.setCurrency("RWF");
         transaction.setId("txn-123");
+        CollectionRequestDto dto = new CollectionRequestDto();
         dto.setSubscriber(subscriber);
         dto.setTransaction(transaction);
         dto.setReference("Payment to OAF");
@@ -74,27 +75,33 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
 
         accessTokenStore.setAccessToken("rwanda", "valid-token", 3600);
 
-        MockEndpoint mockCollectionReq = camelContext.getEndpoint("mock:collection-request", MockEndpoint.class);
-        MockEndpoint mockCollectionRespHandler = camelContext.getEndpoint("mock:collection-response-handler", MockEndpoint.class);
+        MockEndpoint mockCollectionReq = camelContext.getEndpoint("mock:collection-request",
+                MockEndpoint.class);
+        MockEndpoint mockCollectionRespHandler = camelContext
+                .getEndpoint("mock:collection-response-handler", MockEndpoint.class);
         mockCollectionReq.expectedMessageCount(1);
         mockCollectionRespHandler.expectedMessageCount(1);
 
-        Exchange successExchange = camelContext.getEndpoint("direct:collection-request-base").createExchange();
+        Exchange successExchange = camelContext.getEndpoint("direct:collection-request-base")
+                .createExchange();
         successExchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
         successExchange.setProperty(COLLECTION_REQUEST_BODY, buildCollectionRequest());
         producerTemplate.send("direct:collection-request-base", successExchange);
 
         mockCollectionReq.assertIsSatisfied();
         mockCollectionRespHandler.assertIsSatisfied();
-        assertNotNull(successExchange.getProperty(ACCESS_TOKEN), "Access token should be set on success path");
-        assertNull(successExchange.getProperty(TRANSACTION_FAILED), "Transaction failed flag should not be set in success path");
+        assertNotNull(successExchange.getProperty(ACCESS_TOKEN),
+                "Access token should be set on success path");
+        assertNull(successExchange.getProperty(TRANSACTION_FAILED),
+                "Transaction failed flag should not be set in success path");
 
         mockCollectionReq.reset();
         mockCollectionRespHandler.reset();
         mockCollectionReq.expectedMessageCount(0);
         mockCollectionRespHandler.expectedMessageCount(0);
 
-        Exchange failureExchange = camelContext.getEndpoint("direct:collection-request-base").createExchange();
+        Exchange failureExchange = camelContext.getEndpoint("direct:collection-request-base")
+                .createExchange();
         failureExchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
         failureExchange.setProperty(COLLECTION_REQUEST_BODY, buildCollectionRequest());
         failureExchange.setProperty(ERROR_INFORMATION, "Simulated access token failure");
@@ -102,11 +109,13 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
 
         mockCollectionReq.assertIsSatisfied();
         mockCollectionRespHandler.assertIsSatisfied();
-        assertNull(failureExchange.getProperty(ACCESS_TOKEN), "Access token must not be set when access token acquisition failed");
-        assertTrue((Boolean) failureExchange.getProperty(TRANSACTION_FAILED), "Transaction failed flag should be true on failure path");
+        assertNull(failureExchange.getProperty(ACCESS_TOKEN),
+                "Access token must not be set when access token acquisition failed");
+        assertTrue((Boolean) failureExchange.getProperty(TRANSACTION_FAILED),
+                "Transaction failed flag should be true on failure path");
     }
 
-    @DisplayName("Test get-transaction-status-base route success and failure branches (lines 153-169)")
+    @DisplayName("Test get-transaction-status-base route success and failure branches")
     @Test
     void testGetTransactionStatusBaseRouteBranches() throws Exception {
 
@@ -115,7 +124,8 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
             a.weaveByToUri("direct:get-access-token").replace().process(exchange -> {
                 // no-op
             });
-            a.weaveByToUri("direct:airtel-transaction-status").replace().to("mock:airtel-transaction-status");
+            a.weaveByToUri("direct:airtel-transaction-status").replace()
+                    .to("mock:airtel-transaction-status");
             a.weaveByToUri("direct:transaction-status-response-handler")
                 .replace().to("mock:transaction-status-response-handler");
         });
@@ -123,12 +133,15 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
 
         accessTokenStore.setAccessToken("rwanda", "valid-token-2", 3600);
 
-        MockEndpoint mockStatus = camelContext.getEndpoint("mock:airtel-transaction-status", MockEndpoint.class);
-        MockEndpoint mockStatusHandler = camelContext.getEndpoint("mock:transaction-status-response-handler", MockEndpoint.class);
+        MockEndpoint mockStatus = camelContext.getEndpoint("mock:airtel-transaction-status",
+                MockEndpoint.class);
+        MockEndpoint mockStatusHandler = camelContext
+                .getEndpoint("mock:transaction-status-response-handler", MockEndpoint.class);
         mockStatus.expectedMessageCount(1);
         mockStatusHandler.expectedMessageCount(1);
 
-        Exchange successExchange = camelContext.getEndpoint("direct:get-transaction-status-base").createExchange();
+        Exchange successExchange = camelContext.getEndpoint("direct:get-transaction-status-base")
+                .createExchange();
         successExchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
         successExchange.setProperty(SERVER_TRANSACTION_STATUS_RETRY_COUNT, 1);
         successExchange.setProperty(COLLECTION_TRANSACTION_ID, "txn-abc");
@@ -136,14 +149,16 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
 
         mockStatus.assertIsSatisfied();
         mockStatusHandler.assertIsSatisfied();
-        assertNotNull(successExchange.getProperty(ACCESS_TOKEN), "Access token should be set on success status path");
+        assertNotNull(successExchange.getProperty(ACCESS_TOKEN),
+                "Access token should be set on success status path");
 
         mockStatus.reset();
         mockStatusHandler.reset();
         mockStatus.expectedMessageCount(0);
         mockStatusHandler.expectedMessageCount(0);
 
-        Exchange failureExchange = camelContext.getEndpoint("direct:get-transaction-status-base").createExchange();
+        Exchange failureExchange = camelContext.getEndpoint("direct:get-transaction-status-base")
+                .createExchange();
         failureExchange.setProperty(PLATFORM_TENANT_ID, "rwanda");
         failureExchange.setProperty(SERVER_TRANSACTION_STATUS_RETRY_COUNT, 1);
         failureExchange.setProperty(ERROR_INFORMATION, "Simulated access token error");
@@ -151,25 +166,28 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
 
         mockStatus.assertIsSatisfied();
         mockStatusHandler.assertIsSatisfied();
-        assertNull(failureExchange.getProperty(ACCESS_TOKEN), "Access token must not be set when ERROR_INFORMATION is present");
-        assertTrue((Boolean) failureExchange.getProperty(TRANSACTION_FAILED), "Transaction failed should be true on failure status path");
+        assertNull(failureExchange.getProperty(ACCESS_TOKEN),
+                "Access token must not be set when ERROR_INFORMATION is present");
+        assertTrue((Boolean) failureExchange.getProperty(IS_TRANSACTION_PENDING),
+            "Status should be checked again later when no access token could be obtained");
+        assertNull(failureExchange.getProperty(TRANSACTION_FAILED),
+            "Transaction must not be failed because Airtel could not be reached");
         assertNull(failureExchange.getProperty(IS_RETRY_EXCEEDED),
             "Retry exceeded should not be set when access token acquisition fails");
     }
 
-    @DisplayName("Test collection-request route resolves baseUrl from PLATFORM_TENANT_ID via getCountryFromExchange")
+    @DisplayName("Test collection-request route resolves baseUrl from PLATFORM_TENANT_ID via "
+            + "getCountryFromExchange")
     @Test
     void testCollectionRequestResolvesCountryBaseUrl() throws Exception {
         RouteDefinition route = findRouteByInputUri("direct:collection-request");
         camelContext.getRouteController().stopRoute(route.getId());
         AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
-            a.interceptSendToEndpoint("https://*")
-                .skipSendToOriginalEndpoint()
-                .to("mock:collection-https-sink")
-        );
+            a.weaveById("collection-call").replace().to("mock:collection-https-sink"));
         camelContext.getRouteController().startRoute(route.getId());
 
-        MockEndpoint mockSink = camelContext.getEndpoint("mock:collection-https-sink", MockEndpoint.class);
+        MockEndpoint mockSink = camelContext.getEndpoint("mock:collection-https-sink",
+                MockEndpoint.class);
         mockSink.expectedMessageCount(1);
 
         Exchange exchange = camelContext.getEndpoint("direct:collection-request").createExchange();
@@ -177,31 +195,33 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
         exchange.setProperty(ACCESS_TOKEN, "test-token");
         exchange.setProperty(COLLECTION_REQUEST_BODY, buildCollectionRequest());
         producerTemplate.send("direct:collection-request", exchange);
+        mockSink.assertIsSatisfied();
         assertEquals("https://openapiuat.airtel.co.rw", exchange.getProperty("baseUrl"),
                 "baseUrl should resolve to the rwanda base URL when PLATFORM_TENANT_ID=rwanda");
     }
 
-    @DisplayName("Test airtel-transaction-status route resolves baseUrl from PLATFORM_TENANT_ID via getCountryFromExchange")
+    @DisplayName("Test airtel-transaction-status route resolves baseUrl from PLATFORM_TENANT_ID "
+            + "via getCountryFromExchange")
     @Test
     void testTransactionStatusResolvesCountryBaseUrl() throws Exception {
         RouteDefinition route = findRouteByInputUri("direct:airtel-transaction-status");
         camelContext.getRouteController().stopRoute(route.getId());
         AdviceWithRouteBuilder.adviceWith(camelContext, route, a ->
-            a.interceptSendToEndpoint("https://*")
-                .skipSendToOriginalEndpoint()
-                .to("mock:status-https-sink")
-        );
+            a.weaveById("transaction-status-call").replace().to("mock:status-https-sink"));
         camelContext.getRouteController().startRoute(route.getId());
 
-        MockEndpoint mockSink = camelContext.getEndpoint("mock:status-https-sink", MockEndpoint.class);
+        MockEndpoint mockSink = camelContext.getEndpoint("mock:status-https-sink",
+                MockEndpoint.class);
         mockSink.expectedMessageCount(1);
-        Exchange exchange = camelContext.getEndpoint("direct:airtel-transaction-status").createExchange();
+        Exchange exchange = camelContext.getEndpoint("direct:airtel-transaction-status")
+                .createExchange();
         exchange.setProperty(PLATFORM_TENANT_ID, "zambia");
         exchange.setProperty(ACCESS_TOKEN, "test-token");
         exchange.setProperty(COLLECTION_TRANSACTION_ID, "txn-xyz");
         exchange.setProperty("country", "ZM");
         exchange.setProperty("currency", "ZMW");
         producerTemplate.send("direct:airtel-transaction-status", exchange);
+        mockSink.assertIsSatisfied();
         assertEquals("https://openapiuat.airtel.co.zm", exchange.getProperty("baseUrl"),
                 "baseUrl should resolve to the zambia base URL when PLATFORM_TENANT_ID=zambia");
     }
@@ -211,7 +231,8 @@ class AirtelMoneyRouteBuilderTest extends CamelRouteTestSupport {
                 .getRouteDefinitions().stream()
                 .filter(r -> r.getInput() != null && uri.equals(r.getInput().getUri()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Route with input uri " + uri + " not found"));
+                .orElseThrow(() -> new IllegalStateException(
+                        "Route with input uri " + uri + " not found"));
     }
 
 }
