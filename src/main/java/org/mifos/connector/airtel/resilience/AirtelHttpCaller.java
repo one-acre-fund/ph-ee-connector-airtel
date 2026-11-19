@@ -136,7 +136,8 @@ public class AirtelHttpCaller {
         EndpointSettings settings = properties.settingsFor(endpoint);
         String target = uri + (uri.contains("?") ? "&" : "?") + timeoutParameters(settings);
         // A marshalled body is a stream cache that the first attempt reads to its end; the copies
-        // handed to the next attempts would share it and send an empty body. Keep the bytes instead.
+        // handed to the next attempts would share it and send an empty body. Keep the bytes
+        // instead.
         Object body = exchange.getMessage().getBody();
         if (body instanceof InputStream) {
             exchange.getMessage().setBody(exchange.getMessage().getBody(byte[].class));
